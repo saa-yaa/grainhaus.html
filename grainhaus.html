@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#1a1208">
+<title>Grainhaus</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
+
+  :root {
+    --bg: #0e0c08;
+    --surface: #1a1208;
+    --border: #3a2e1a;
+    --text: #e8d5a3;
+    --text-dim: #8a7458;
+    --accent: #c8a84b;
+    --grain-opacity: 0.18;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg);
+    font-family: 'Courier Prime', monospace;
+    color: var(--text);
+  }
+
+  /* ── GRAIN CANVAS ── */
+  #grain {
+    position: fixed; inset: 0; z-index: 9999;
+    pointer-events: none;
+    opacity: var(--grain-opacity);
+    mix-blend-mode: overlay;
+  }
+
+  /* ── VIEWFINDER ── */
+  #app {
+    display: flex; flex-direction: column;
+    width: 100%; height: 100%;
+    position: relative;
+  }
+
+  /* Top bar */
+  #topbar {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 10;
+    padding: 16px 20px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%);
+  }
+
+  #logo {
+    font-family: 'Special Elite', cursive;
+    font-size: 22px;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(200,168,75,0.5);
+  }
+
+  #iso-badge {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    background: rgba(0,0,0,0.5);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 2px;
+  }
+
+  /* Viewfinder */
+  #viewfinder {
+    position: absolute; inset: 0;
+    overflow: hidden;
+  }
+
+  #video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  /* Film overlay — the color grade happens here */
+  #film-overlay {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+
+  /* Vignette */
+  #vignette {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center,
+      transparent 40%,
+      rgba(0,0,0,0.55) 100%);
+  }
+
+  /* Corner brackets */
+  .corner {
+    position: absolute; width: 28px; height: 28px;
+    border-color: rgba(232,213,163,0.6); border-style: solid;
+    pointer-events: none; z-index: 5;
+  }
+  .corner.tl { top: 64px; left: 16px; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 64px; right: 16px; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 200px; left: 16px; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 200px; right: 16px; border-width: 0 2px 2px 0; }
+
+  /* Date stamp */
+  #datestamp {
+    position: absolute; bottom: 212px; right: 20px;
+    font-family: 'Courier Prime', monospace;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: #e8a020;
+    text-shadow: 0 0 10px rgba(232,160,32,0.9), 0 0 20px rgba(232,160,32,0.4);
+    pointer-events: none;
+    z-index: 6;
+    opacity: 0.9;
+  }
+
+  /* ── CONTROLS ── */
+  #controls {
+    position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+    padding: 16px 20px 36px;
+    background: linear-gradient(to top, rgba(0,0,0,0.92) 60%, transparent 100%);
+  }
+
+  /* Preset strip */
+  #preset-strip {
+    display: flex; gap: 10px;
+    overflow-x: auto; padding-bottom: 14px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  #preset-strip::-webkit-scrollbar { display: none; }
+
+  .preset-btn {
+    flex: 0 0 auto;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    cursor: pointer; border: none; background: none;
+    padding: 0;
+  }
+
+  .preset-swatch {
+    width: 44px; height: 44px;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    transition: border-color 0.2s, transform 0.2s;
+    position: relative; overflow: hidden;
+  }
+
+  .preset-btn.active .preset-swatch {
+    border-color: var(--accent);
+    transform: scale(1.08);
+  }
+
+  .preset-label {
+    font-size: 9px; letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .preset-btn.active .preset-label { color: var(--accent); }
+
+  /* Main row: flip + shutter + gallery */
+  #main-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 8px;
+  }
+
+  .side-btn {
+    width: 48px; height: 48px;
+    border-radius: 50%; border: 1px solid var(--border);
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+    font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+  .side-btn:active { transform: scale(0.92); background: rgba(255,255,255,0.12); }
+
+  #shutter-wrap {
+    position: relative; display: flex; align-items: center; justify-content: center;
+  }
+
+  #shutter-ring {
+    width: 84px; height: 84px; border-radius: 50%;
+    border: 3px solid rgba(232,213,163,0.4);
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s;
+  }
+  #shutter-ring.firing { border-color: rgba(232,213,163,0.9); }
+
+  #shutter {
+    width: 68px; height: 68px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #f0e0b0, #c8a84b 50%, #8a6a20);
+    border: none; cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.2);
+    transition: transform 0.1s, box-shadow 0.1s;
+    -webkit-appearance: none;
+  }
+  #shutter:active, #shutter.firing {
+    transform: scale(0.93);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.8), inset 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  /* Gallery thumbnail */
+  #gallery-thumb {
+    width: 48px; height: 48px; border-radius: 4px;
+    border: 2px solid var(--border);
+    object-fit: cover;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--text-dim); letter-spacing: 0.05em;
+    text-align: center;
+    overflow: hidden;
+  }
+  #gallery-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* ── FLASH EFFECT ── */
+  #flash {
+    position: absolute; inset: 0; z-index: 50;
+    background: white; opacity: 0; pointer-events: none;
+    transition: opacity 0.05s ease;
+  }
+  #flash.on { opacity: 0.85; }
+
+  /* ── GALLERY MODAL ── */
+  #gallery-modal {
+    position: absolute; inset: 0; z-index: 100;
+    background: var(--bg);
+    display: none; flex-direction: column;
+  }
+  #gallery-modal.open { display: flex; }
+
+  #gallery-header {
+    padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  #gallery-title {
+    font-family: 'Special Elite', cursive;
+    font-size: 18px; color: var(--accent);
+    letter-spacing: 0.1em;
+  }
+
+  #gallery-close {
+    background: none; border: none; color: var(--text);
+    font-size: 24px; cursor: pointer; padding: 4px;
+  }
+
+  #gallery-grid {
+    flex: 1; overflow-y: auto;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 2px; padding: 2px;
+  }
+
+  .gallery-item {
+    aspect-ratio: 1; position: relative; overflow: hidden;
+    cursor: pointer;
+  }
+  .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
+  .gallery-item .dl-btn {
+    position: absolute; bottom: 4px; right: 4px;
+    background: rgba(0,0,0,0.7);
+    border: none; border-radius: 3px;
+    color: var(--accent); font-size: 14px;
+    padding: 4px 6px; cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .gallery-item:hover .dl-btn,
+  .gallery-item:active .dl-btn { opacity: 1; }
+
+  #gallery-empty {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+    color: var(--text-dim);
+  }
+  #gallery-empty .icon { font-size: 48px; opacity: 0.3; }
+  #gallery-empty p { font-size: 13px; letter-spacing: 0.1em; }
+
+  /* ── PERMISSION SCREEN ── */
+  #permission-screen {
+    position: absolute; inset: 0; z-index: 200;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 24px;
+    padding: 40px;
+    text-align: center;
+  }
+
+  #permission-screen h1 {
+    font-family: 'Special Elite', cursive;
+    font-size: 32px; color: var(--accent);
+    letter-spacing: 0.15em;
+  }
+
+  #permission-screen p {
+    color: var(--text-dim); font-size: 14px;
+    line-height: 1.8; letter-spacing: 0.05em;
+  }
+
+  #allow-btn {
+    background: var(--accent); color: #1a1208;
+    border: none; border-radius: 3px;
+    padding: 14px 32px;
+    font-family: 'Courier Prime', monospace;
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  #allow-btn:active { opacity: 0.7; }
+
+  /* Film counter */
+  #film-counter {
+    font-size: 10px; letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-align: center; padding-top: 6px;
+  }
+
+  /* Canvas for final shot processing (hidden) */
+  #capture-canvas { display: none; }
+
+  /* No-camera fallback */
+  #no-camera {
+    position: absolute; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    background: #0e0c08; color: var(--text-dim);
+    font-size: 13px; letter-spacing: 0.1em; text-align: center; padding: 40px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="grain"></canvas>
+<canvas id="capture-canvas"></canvas>
+
+<!-- Permission screen -->
+<div id="permission-screen">
+  <h1>GRAINHAUS</h1>
+  <p>A personal film camera.<br>Needs access to your camera to shoot.</p>
+  <button id="allow-btn" onclick="startCamera()">Allow Camera</button>
+</div>
+
+<div id="app">
+  <!-- Viewfinder -->
+  <div id="viewfinder">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="film-overlay"></div>
+    <div id="vignette"></div>
+    <div id="flash"></div>
+    <div id="no-camera">📷<br><br>Camera not available.<br>Open in a browser on your device.</div>
+  </div>
+
+  <!-- Corners -->
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <!-- Date stamp -->
+  <div id="datestamp"></div>
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <div id="logo">GRAINHAUS</div>
+    <div id="iso-badge">ISO 400</div>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls">
+    <!-- Preset strip -->
+    <div id="preset-strip"></div>
+    <!-- Main row -->
+    <div id="main-row">
+      <button class="side-btn" id="flip-btn" title="Flip camera">⇄</button>
+      <div id="shutter-wrap">
+        <div id="shutter-ring">
+          <button id="shutter"></button>
+        </div>
+      </div>
+      <div id="gallery-thumb" onclick="openGallery()">
+        <span id="thumb-placeholder" style="font-size:10px;color:var(--text-dim);text-align:center;padding:4px;">ROLL</span>
+      </div>
+    </div>
+    <div id="film-counter">— 0 frames —</div>
+  </div>
+
+  <!-- Gallery modal -->
+  <div id="gallery-modal">
+    <div id="gallery-header">
+      <span id="gallery-title">THE ROLL</span>
+      <button id="gallery-close" onclick="closeGallery()">✕</button>
+    </div>
+    <div id="gallery-grid"></div>
+    <div id="gallery-empty" style="display:none;">
+      <div class="icon">📷</div>
+      <p>NO FRAMES YET.<br>START SHOOTING.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// GRAIN ENGINE
+// ═══════════════════════════════════════════════
+const grainCanvas = document.getElementById('grain');
+const grainCtx = grainCanvas.getContext('2d');
+let grainFrame;
+
+function resizeGrain() {
+  grainCanvas.width = window.innerWidth;
+  grainCanvas.height = window.innerHeight;
+}
+
+function animateGrain() {
+  const w = grainCanvas.width, h = grainCanvas.height;
+  const imageData = grainCtx.createImageData(w, h);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const v = Math.random() * 255 | 0;
+    data[i] = v; data[i+1] = v; data[i+2] = v; data[i+3] = 255;
+  }
+  grainCtx.putImageData(imageData, 0, 0);
+  grainFrame = requestAnimationFrame(animateGrain);
+}
+
+resizeGrain();
+animateGrain();
+window.addEventListener('resize', resizeGrain);
+
+// ═══════════════════════════════════════════════
+// FILM PRESETS
+// ═══════════════════════════════════════════════
+const PRESETS = [
+  {
+    id: 'kodak400',
+    name: 'KODAK 400',
+    iso: 'ISO 400',
+    swatch: 'linear-gradient(135deg, #d4a96a 0%, #e8c97a 50%, #c8885a 100%)',
+    overlay: 'rgba(220, 160, 60, 0.10)',
+    shadow: 'inset 0 0 80px rgba(180, 100, 20, 0.18)',
+    filter: 'saturate(1.15) contrast(1.08) brightness(1.02) sepia(0.18)',
+    grainOp: '0.20',
+    stamp: '#e8a020',
+  },
+  {
+    id: 'fuji400h',
+    name: 'FUJI 400H',
+    iso: 'ISO 400',
+    swatch: 'linear-gradient(135deg, #a8c8a0 0%, #c8ddb0 50%, #90b890 100%)',
+    overlay: 'rgba(80, 160, 90, 0.07)',
+    shadow: 'inset 0 0 80px rgba(40, 120, 60, 0.14)',
+    filter: 'saturate(0.92) contrast(1.04) brightness(1.04) hue-rotate(8deg)',
+    grainOp: '0.18',
+    stamp: '#a8d0a0',
+  },
+  {
+    id: 'kodakpro',
+    name: 'PORTRA 800',
+    iso: 'ISO 800',
+    swatch: 'linear-gradient(135deg, #e8c8a0 0%, #f8e0b8 50%, #d8a878 100%)',
+    overlay: 'rgba(240, 180, 100, 0.12)',
+    shadow: 'inset 0 0 80px rgba(200, 120, 40, 0.20)',
+    filter: 'saturate(1.05) contrast(1.03) brightness(1.06) sepia(0.12)',
+    grainOp: '0.26',
+    stamp: '#f0b840',
+  },
+  {
+    id: 'hp5',
+    name: 'HP5 B&W',
+    iso: 'ISO 3200',
+    swatch: 'linear-gradient(135deg, #888 0%, #bbb 50%, #555 100%)',
+    overlay: 'rgba(0,0,0,0.05)',
+    shadow: 'inset 0 0 80px rgba(0,0,0,0.22)',
+    filter: 'grayscale(1) contrast(1.15) brightness(0.97)',
+    grainOp: '0.30',
+    stamp: '#cccccc',
+  },
+  {
+    id: 'velvia',
+    name: 'VELVIA 50',
+    iso: 'ISO 50',
+    swatch: 'linear-gradient(135deg, #6090d0 0%, #a070c0 50%, #e08050 100%)',
+    overlay: 'rgba(80, 50, 180, 0.08)',
+    shadow: 'inset 0 0 80px rgba(60, 30, 160, 0.14)',
+    filter: 'saturate(1.45) contrast(1.18) brightness(0.98)',
+    grainOp: '0.12',
+    stamp: '#80b8f8',
+  },
+  {
+    id: 'lomo',
+    name: 'LOMO LC-A',
+    iso: 'ISO 1600',
+    swatch: 'linear-gradient(135deg, #c05030 0%, #e08020 50%, #802010 100%)',
+    overlay: 'rgba(200, 60, 20, 0.10)',
+    shadow: 'inset 0 0 100px rgba(160, 40, 0, 0.35)',
+    filter: 'saturate(1.30) contrast(1.25) brightness(0.90)',
+    grainOp: '0.28',
+    stamp: '#e8802a',
+  },
+];
+
+let currentPreset = PRESETS[0];
+
+function buildPresetStrip() {
+  const strip = document.getElementById('preset-strip');
+  PRESETS.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn' + (i === 0 ? ' active' : '');
+    btn.dataset.id = p.id;
+    btn.innerHTML = `
+      <div class="preset-swatch" style="background:${p.swatch};"></div>
+      <span class="preset-label">${p.name}</span>
+    `;
+    btn.addEventListener('click', () => selectPreset(p, btn));
+    strip.appendChild(btn);
+  });
+}
+
+function selectPreset(preset, btn) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentPreset = preset;
+  applyPreset(preset);
+}
+
+function applyPreset(preset) {
+  const overlay = document.getElementById('film-overlay');
+  const video = document.getElementById('video');
+  const isoBadge = document.getElementById('iso-badge');
+  const datestamp = document.getElementById('datestamp');
+
+  overlay.style.background = preset.overlay;
+  overlay.style.boxShadow = preset.shadow;
+  video.style.filter = preset.filter;
+  document.documentElement.style.setProperty('--grain-opacity', preset.grainOp);
+  isoBadge.textContent = preset.iso;
+  datestamp.style.color = preset.stamp;
+  datestamp.style.textShadow = `0 0 10px ${preset.stamp}cc, 0 0 20px ${preset.stamp}66`;
+}
+
+// ═══════════════════════════════════════════════
+// DATE STAMP
+// ═══════════════════════════════════════════════
+function updateDateStamp() {
+  const now = new Date();
+  const y = now.getFullYear().toString().slice(2);
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  document.getElementById('datestamp').textContent = `${d}·${m}·'${y}`;
+}
+updateDateStamp();
+setInterval(updateDateStamp, 60000);
+
+// ═══════════════════════════════════════════════
+// CAMERA
+// ═══════════════════════════════════════════════
+let stream = null;
+let facingMode = 'environment';
+const video = document.getElementById('video');
+
+async function startCamera() {
+  document.getElementById('permission-screen').style.display = 'none';
+  try {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 3840 }, height: { ideal: 2160 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    document.getElementById('no-camera').style.display = 'none';
+  } catch (e) {
+    document.getElementById('no-camera').style.display = 'flex';
+    console.error(e);
+  }
+}
+
+document.getElementById('flip-btn').addEventListener('click', () => {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  startCamera();
+});
+
+// ═══════════════════════════════════════════════
+// CAPTURE
+// ═══════════════════════════════════════════════
+const photos = []; // { dataUrl, preset, date }
+const captureCanvas = document.getElementById('capture-canvas');
+const captureCtx = captureCanvas.getContext('2d');
+
+function takePhoto() {
+  if (!stream) return;
+
+  // Flash
+  const flash = document.getElementById('flash');
+  const shutter = document.getElementById('shutter');
+  const ring = document.getElementById('shutter-ring');
+  flash.classList.add('on');
+  shutter.classList.add('firing');
+  ring.classList.add('firing');
+  setTimeout(() => {
+    flash.classList.remove('on');
+    shutter.classList.remove('firing');
+    ring.classList.remove('firing');
+  }, 120);
+
+  // Capture frame
+  const vw = video.videoWidth || 1920;
+  const vh = video.videoHeight || 1080;
+  captureCanvas.width = vw;
+  captureCanvas.height = vh;
+
+  // Draw video
+  captureCtx.filter = currentPreset.filter;
+  captureCtx.drawImage(video, 0, 0, vw, vh);
+  captureCtx.filter = 'none';
+
+  // Color overlay
+  captureCtx.fillStyle = currentPreset.overlay;
+  captureCtx.fillRect(0, 0, vw, vh);
+
+  // Vignette
+  const vGrad = captureCtx.createRadialGradient(vw/2, vh/2, vw*0.25, vw/2, vh/2, vw*0.75);
+  vGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  vGrad.addColorStop(1, 'rgba(0,0,0,0.55)');
+  captureCtx.fillStyle = vGrad;
+  captureCtx.fillRect(0, 0, vw, vh);
+
+  // Grain
+  const grainImageData = captureCtx.createImageData(vw, vh);
+  const gData = grainImageData.data;
+  for (let i = 0; i < gData.length; i += 4) {
+    const v = (Math.random() * 255) | 0;
+    gData[i] = v; gData[i+1] = v; gData[i+2] = v;
+    gData[i+3] = Math.round(parseFloat(currentPreset.grainOp) * 200);
+  }
+  // Blend grain in overlay mode via globalCompositeOperation
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = vw; tmpCanvas.height = vh;
+  const tmpCtx = tmpCanvas.getContext('2d');
+  tmpCtx.putImageData(grainImageData, 0, 0);
+  captureCtx.globalCompositeOperation = 'overlay';
+  captureCtx.drawImage(tmpCanvas, 0, 0);
+  captureCtx.globalCompositeOperation = 'source-over';
+
+  // Date stamp
+  const now = new Date();
+  const y = now.getFullYear().toString().slice(2);
+  const mo = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const stampText = `${d}·${mo}·'${y}`;
+  const fs = Math.round(vw * 0.022);
+  captureCtx.font = `${fs}px 'Courier Prime', monospace`;
+  captureCtx.fillStyle = currentPreset.stamp;
+  captureCtx.shadowColor = currentPreset.stamp;
+  captureCtx.shadowBlur = vw * 0.008;
+  captureCtx.textAlign = 'right';
+  captureCtx.fillText(stampText, vw - vw*0.03, vh - vh*0.05);
+  captureCtx.shadowBlur = 0;
+
+  // Preset name (tiny, bottom-left)
+  captureCtx.font = `${Math.round(fs*0.6)}px 'Courier Prime', monospace`;
+  captureCtx.fillStyle = 'rgba(232,213,163,0.4)';
+  captureCtx.textAlign = 'left';
+  captureCtx.fillText(currentPreset.name, vw*0.03, vh - vh*0.05);
+
+  const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.94);
+  const photo = { dataUrl, preset: currentPreset.name, date: new Date() };
+  photos.unshift(photo);
+
+  updateCounter();
+  updateThumb(dataUrl);
+}
+
+document.getElementById('shutter').addEventListener('click', takePhoto);
+
+function updateCounter() {
+  document.getElementById('film-counter').textContent = `— ${photos.length} frame${photos.length !== 1 ? 's' : ''} —`;
+}
+
+function updateThumb(dataUrl) {
+  const thumb = document.getElementById('gallery-thumb');
+  thumb.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;">`;
+}
+
+// ═══════════════════════════════════════════════
+// GALLERY
+// ═══════════════════════════════════════════════
+function openGallery() {
+  const modal = document.getElementById('gallery-modal');
+  const grid = document.getElementById('gallery-grid');
+  const empty = document.getElementById('gallery-empty');
+  modal.classList.add('open');
+
+  grid.innerHTML = '';
+  if (photos.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+  } else {
+    grid.style.display = 'grid';
+    empty.style.display = 'none';
+    photos.forEach((p, i) => {
+      const item = document.createElement('div');
+      item.className = 'gallery-item';
+      item.innerHTML = `
+        <img src="${p.dataUrl}" alt="Frame ${i+1}">
+        <button class="dl-btn" title="Save">⬇</button>
+      `;
+      item.querySelector('.dl-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        downloadPhoto(p, i);
+      });
+      item.addEventListener('click', () => downloadPhoto(p, i));
+      grid.appendChild(item);
+    });
+  }
+}
+
+function closeGallery() {
+  document.getElementById('gallery-modal').classList.remove('open');
+}
+
+function downloadPhoto(photo, index) {
+  const a = document.createElement('a');
+  const d = photo.date;
+  const fname = `grainhaus_${photo.preset.replace(/\s/g,'_')}_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${index+1}.jpg`;
+  a.href = photo.dataUrl;
+  a.download = fname;
+  a.click();
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+buildPresetStrip();
+applyPreset(currentPreset);
+
+// Keyboard shortcut: Space = shutter
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && document.getElementById('gallery-modal').classList.contains('open') === false) {
+    e.preventDefault(); takePhoto();
+  }
+  if (e.code === 'Escape') closeGallery();
+});
+</script>
+</body>
+</html>

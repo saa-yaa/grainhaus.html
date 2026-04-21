@@ -1,0 +1,17 @@
+{
+  "name": "Grainhaus",
+  "short_name": "Grainhaus",
+  "description": "A personal vintage film camera app",
+  "start_url": "./grainhaus.html",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0e0c08",
+  "theme_color": "#1a1208",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%231a1208'/%3E%3Ccircle cx='96' cy='96' r='50' fill='none' stroke='%23c8a84b' stroke-width='6'/%3E%3Ccircle cx='96' cy='96' r='30' fill='%23c8a84b' opacity='0.3'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
