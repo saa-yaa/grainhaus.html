@@ -5,451 +5,283 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="theme-color" content="#1a1208">
+<meta name="theme-color" content="#0a0805">
 <title>Grainhaus</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
 
-  :root {
-    --bg: #0e0c08;
-    --surface: #1a1208;
-    --border: #3a2e1a;
-    --text: #e8d5a3;
-    --text-dim: #8a7458;
-    --accent: #c8a84b;
-    --grain-opacity: 0.18;
-  }
+:root {
+  --bg: #0a0805;
+  --surface: #161008;
+  --border: #2e2010;
+  --text: #e0c890;
+  --text-dim: #6a5830;
+  --accent: #c8a030;
+  --red: #c04020;
+  --grain-opacity: 0.18;
+}
 
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); font-family:'Courier Prime',monospace; color:var(--text); }
 
-  html, body {
-    width: 100%; height: 100%; overflow: hidden;
-    background: var(--bg);
-    font-family: 'Courier Prime', monospace;
-    color: var(--text);
-  }
+/* ── GRAIN ── */
+#grain { position:fixed; inset:0; z-index:9998; pointer-events:none; opacity:var(--grain-opacity); mix-blend-mode:overlay; }
 
-  /* ── GRAIN CANVAS ── */
-  #grain {
-    position: fixed; inset: 0; z-index: 9999;
-    pointer-events: none;
-    opacity: var(--grain-opacity);
-    mix-blend-mode: overlay;
-  }
+/* ── PERMISSION ── */
+#permission-screen {
+  position:fixed; inset:0; z-index:9999; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:40px; text-align:center;
+}
+#permission-screen h1 { font-family:'Special Elite',cursive; font-size:36px; color:var(--accent); letter-spacing:0.2em; text-shadow:0 0 30px rgba(200,160,48,0.4); }
+#permission-screen p { color:var(--text-dim); font-size:13px; line-height:1.9; letter-spacing:0.06em; max-width:280px; }
+#allow-btn { background:var(--accent); color:#0a0805; border:none; padding:14px 36px; font-family:'Courier Prime',monospace; font-size:13px; font-weight:700; letter-spacing:0.25em; text-transform:uppercase; cursor:pointer; border-radius:2px; }
 
-  /* ── VIEWFINDER ── */
-  #app {
-    display: flex; flex-direction: column;
-    width: 100%; height: 100%;
-    position: relative;
-  }
+/* ── APP ── */
+#app { position:relative; width:100%; height:100%; }
 
-  /* Top bar */
-  #topbar {
-    position: absolute; top: 0; left: 0; right: 0; z-index: 10;
-    padding: 16px 20px 12px;
-    display: flex; align-items: center; justify-content: space-between;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%);
-  }
+/* ── VIEWFINDER ── */
+#viewfinder { position:absolute; inset:0; overflow:hidden; }
+#video { width:100%; height:100%; object-fit:cover; transition:transform 0.1s; }
+#film-overlay { position:absolute; inset:0; pointer-events:none; transition:all 0.35s; }
+#vignette { position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.65) 100%); }
+#flash { position:absolute; inset:0; z-index:50; background:white; opacity:0; pointer-events:none; transition:opacity 0.04s; }
+#flash.on { opacity:0.9; }
 
-  #logo {
-    font-family: 'Special Elite', cursive;
-    font-size: 22px;
-    letter-spacing: 0.12em;
-    color: var(--accent);
-    text-shadow: 0 0 20px rgba(200,168,75,0.5);
-  }
+/* Shake animation */
+@keyframes shake {
+  0%,100%{transform:translate(0,0) rotate(0deg)}
+  10%{transform:translate(-2px,1px) rotate(-0.3deg)}
+  20%{transform:translate(2px,-1px) rotate(0.3deg)}
+  30%{transform:translate(-3px,2px) rotate(-0.2deg)}
+  40%{transform:translate(3px,-2px) rotate(0.4deg)}
+  50%{transform:translate(-1px,3px) rotate(-0.3deg)}
+  60%{transform:translate(1px,-3px) rotate(0.2deg)}
+  70%{transform:translate(-2px,1px) rotate(-0.4deg)}
+  80%{transform:translate(2px,2px) rotate(0.1deg)}
+  90%{transform:translate(-1px,-1px) rotate(0.3deg)}
+}
+#viewfinder.shaking { animation:shake 0.5s ease-in-out; }
 
-  #iso-badge {
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    color: var(--text-dim);
-    background: rgba(0,0,0,0.5);
-    border: 1px solid var(--border);
-    padding: 3px 8px;
-    border-radius: 2px;
-  }
+/* Light leaks canvas */
+#lightleak { position:absolute; inset:0; pointer-events:none; z-index:3; opacity:0; transition:opacity 1s; }
+#lightleak.active { opacity:1; }
 
-  /* Viewfinder */
-  #viewfinder {
-    position: absolute; inset: 0;
-    overflow: hidden;
-  }
+/* Scratches canvas */
+#scratches { position:absolute; inset:0; pointer-events:none; z-index:4; }
 
-  #video {
-    width: 100%; height: 100%;
-    object-fit: cover;
-  }
+/* Sprocket holes */
+#sprockets { position:absolute; inset:0; pointer-events:none; z-index:5; display:none; }
+.sprocket-strip { position:absolute; top:0; bottom:0; width:28px; display:flex; flex-direction:column; justify-content:space-around; align-items:center; background:rgba(0,0,0,0.7); }
+.sprocket-strip.left { left:0; }
+.sprocket-strip.right { right:0; }
+.sprocket-hole { width:14px; height:10px; background:rgba(20,14,6,0.9); border:1px solid rgba(100,70,20,0.5); border-radius:2px; }
 
-  /* Film overlay — the color grade happens here */
-  #film-overlay {
-    position: absolute; inset: 0;
-    pointer-events: none;
-    transition: background 0.4s ease, box-shadow 0.4s ease;
-  }
+/* Scan lines for digital modes */
+#scanlines { position:absolute; inset:0; pointer-events:none; z-index:6; opacity:0; background:repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px); }
 
-  /* Vignette */
-  #vignette {
-    position: absolute; inset: 0;
-    pointer-events: none;
-    background: radial-gradient(ellipse at center,
-      transparent 40%,
-      rgba(0,0,0,0.55) 100%);
-  }
+/* Corner brackets */
+.corner { position:absolute; width:22px; height:22px; border-color:rgba(224,200,144,0.5); border-style:solid; pointer-events:none; z-index:7; }
+.corner.tl { top:58px; left:14px; border-width:2px 0 0 2px; }
+.corner.tr { top:58px; right:14px; border-width:2px 2px 0 0; }
+.corner.bl { bottom:198px; left:14px; border-width:0 0 2px 2px; }
+.corner.br { bottom:198px; right:14px; border-width:0 2px 2px 0; }
 
-  /* Corner brackets */
-  .corner {
-    position: absolute; width: 28px; height: 28px;
-    border-color: rgba(232,213,163,0.6); border-style: solid;
-    pointer-events: none; z-index: 5;
-  }
-  .corner.tl { top: 64px; left: 16px; border-width: 2px 0 0 2px; }
-  .corner.tr { top: 64px; right: 16px; border-width: 2px 2px 0 0; }
-  .corner.bl { bottom: 200px; left: 16px; border-width: 0 0 2px 2px; }
-  .corner.br { bottom: 200px; right: 16px; border-width: 0 2px 2px 0; }
+/* Date stamp */
+#datestamp { position:absolute; bottom:210px; right:18px; font-family:'Courier Prime',monospace; font-size:12px; letter-spacing:0.08em; pointer-events:none; z-index:8; opacity:0.92; transition:color 0.3s; }
 
-  /* Date stamp */
-  #datestamp {
-    position: absolute; bottom: 212px; right: 20px;
-    font-family: 'Courier Prime', monospace;
-    font-size: 13px;
-    letter-spacing: 0.08em;
-    color: #e8a020;
-    text-shadow: 0 0 10px rgba(232,160,32,0.9), 0 0 20px rgba(232,160,32,0.4);
-    pointer-events: none;
-    z-index: 6;
-    opacity: 0.9;
-  }
+/* Zoom indicator */
+#zoom-indicator { position:absolute; top:66px; left:50%; transform:translateX(-50%); font-size:10px; letter-spacing:0.2em; color:var(--accent); background:rgba(0,0,0,0.55); padding:3px 10px; border-radius:2px; pointer-events:none; z-index:8; opacity:0; transition:opacity 0.3s; }
+#zoom-indicator.visible { opacity:1; }
 
-  /* ── CONTROLS ── */
-  #controls {
-    position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
-    padding: 16px 20px 36px;
-    background: linear-gradient(to top, rgba(0,0,0,0.92) 60%, transparent 100%);
-  }
+/* Shot count overlay */
+#shot-overlay { position:absolute; top:66px; right:18px; font-size:10px; letter-spacing:0.15em; color:var(--accent); background:rgba(0,0,0,0.55); padding:3px 8px; border-radius:2px; pointer-events:none; z-index:8; }
 
-  /* Preset strip */
-  #preset-strip {
-    display: flex; gap: 10px;
-    overflow-x: auto; padding-bottom: 14px;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  #preset-strip::-webkit-scrollbar { display: none; }
+/* Double exposure indicator */
+#dbl-exp-indicator { position:absolute; top:66px; left:18px; font-size:9px; letter-spacing:0.15em; color:var(--red); background:rgba(0,0,0,0.6); padding:3px 8px; border-radius:2px; pointer-events:none; z-index:8; display:none; }
+#dbl-exp-indicator.active { display:block; }
 
-  .preset-btn {
-    flex: 0 0 auto;
-    display: flex; flex-direction: column; align-items: center; gap: 5px;
-    cursor: pointer; border: none; background: none;
-    padding: 0;
-  }
+/* Halation canvas */
+#halation { position:absolute; inset:0; pointer-events:none; z-index:2; opacity:0; }
 
-  .preset-swatch {
-    width: 44px; height: 44px;
-    border-radius: 4px;
-    border: 2px solid transparent;
-    transition: border-color 0.2s, transform 0.2s;
-    position: relative; overflow: hidden;
-  }
+/* ── TOP BAR ── */
+#topbar { position:absolute; top:0; left:0; right:0; z-index:10; padding:12px 16px 10px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(to bottom,rgba(0,0,0,0.8) 0%,transparent 100%); }
+#logo { font-family:'Special Elite',cursive; font-size:20px; letter-spacing:0.14em; color:var(--accent); text-shadow:0 0 16px rgba(200,160,48,0.5); }
+#topbar-right { display:flex; align-items:center; gap:8px; }
+#iso-badge { font-size:9px; letter-spacing:0.22em; color:var(--text-dim); background:rgba(0,0,0,0.5); border:1px solid var(--border); padding:2px 7px; border-radius:2px; }
+#mode-badge { font-size:9px; letter-spacing:0.15em; color:var(--red); background:rgba(0,0,0,0.5); border:1px solid rgba(192,64,32,0.4); padding:2px 7px; border-radius:2px; display:none; }
 
-  .preset-btn.active .preset-swatch {
-    border-color: var(--accent);
-    transform: scale(1.08);
-  }
+/* ── CONTROLS ── */
+#controls { position:absolute; bottom:0; left:0; right:0; z-index:10; padding:10px 16px 32px; background:linear-gradient(to top,rgba(0,0,0,0.95) 65%,transparent 100%); }
 
-  .preset-label {
-    font-size: 9px; letter-spacing: 0.15em;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    transition: color 0.2s;
-  }
-  .preset-btn.active .preset-label { color: var(--accent); }
+/* Tab selector */
+#tab-bar { display:flex; gap:0; margin-bottom:10px; border:1px solid var(--border); border-radius:3px; overflow:hidden; }
+.tab-btn { flex:1; background:none; border:none; color:var(--text-dim); font-family:'Courier Prime',monospace; font-size:9px; letter-spacing:0.18em; padding:6px 4px; cursor:pointer; text-transform:uppercase; transition:all 0.2s; }
+.tab-btn.active { background:rgba(200,160,48,0.15); color:var(--accent); }
 
-  /* Zoom bar */
-  #zoom-bar {
-    display: flex; align-items: center; gap: 10px;
-    padding: 0 4px 14px;
-  }
+/* Preset strip */
+#preset-strip { display:flex; gap:8px; overflow-x:auto; padding-bottom:10px; scrollbar-width:none; -ms-overflow-style:none; }
+#preset-strip::-webkit-scrollbar { display:none; }
 
-  #zoom-label {
-    font-size: 10px; letter-spacing: 0.18em;
-    color: var(--accent); min-width: 36px;
-    text-align: center;
-  }
+.preset-btn { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; border:none; background:none; padding:0; }
+.preset-swatch { width:40px; height:40px; border-radius:3px; border:2px solid transparent; transition:border-color 0.2s, transform 0.2s; }
+.preset-btn.active .preset-swatch { border-color:var(--accent); transform:scale(1.1); }
+.preset-label { font-size:8px; letter-spacing:0.12em; color:var(--text-dim); text-transform:uppercase; transition:color 0.2s; max-width:44px; text-align:center; line-height:1.2; }
+.preset-btn.active .preset-label { color:var(--accent); }
 
-  #zoom-slider {
-    flex: 1; -webkit-appearance: none; appearance: none;
-    height: 2px; background: var(--border);
-    border-radius: 2px; outline: none; cursor: pointer;
-  }
-  #zoom-slider::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #f0e0b0, #c8a84b 60%, #8a6a20);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-    cursor: pointer;
-  }
-  #zoom-slider::-moz-range-thumb {
-    width: 18px; height: 18px; border-radius: 50%; border: none;
-    background: radial-gradient(circle at 35% 35%, #f0e0b0, #c8a84b 60%, #8a6a20);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-    cursor: pointer;
-  }
+/* Effect toggles */
+#effects-panel { display:none; flex-wrap:wrap; gap:6px; padding-bottom:10px; }
+#effects-panel.visible { display:flex; }
+.eff-btn { background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-dim); font-family:'Courier Prime',monospace; font-size:8px; letter-spacing:0.14em; padding:5px 10px; border-radius:2px; cursor:pointer; text-transform:uppercase; transition:all 0.2s; }
+.eff-btn.on { background:rgba(200,160,48,0.14); border-color:var(--accent); color:var(--accent); }
+.eff-btn.on.red { background:rgba(192,64,32,0.14); border-color:var(--red); color:var(--red); }
 
-  /* Zoom indicator on viewfinder */
-  #zoom-indicator {
-    position: absolute; top: 72px; left: 50%; transform: translateX(-50%);
-    font-size: 11px; letter-spacing: 0.2em;
-    color: var(--accent);
-    background: rgba(0,0,0,0.5);
-    padding: 3px 10px; border-radius: 2px;
-    pointer-events: none; z-index: 6;
-    opacity: 0; transition: opacity 0.3s;
-  }
-  #zoom-indicator.visible { opacity: 1; }
+/* Zoom bar */
+#zoom-bar { display:flex; align-items:center; gap:8px; padding-bottom:10px; }
+#zoom-label { font-size:10px; letter-spacing:0.18em; color:var(--accent); min-width:34px; text-align:center; }
+#zoom-slider { flex:1; -webkit-appearance:none; appearance:none; height:2px; background:var(--border); border-radius:2px; outline:none; cursor:pointer; }
+#zoom-slider::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:radial-gradient(circle at 35% 35%,#f0e0b0,#c8a030 60%,#7a5a10); box-shadow:0 2px 8px rgba(0,0,0,0.5); cursor:pointer; }
+#zoom-slider::-moz-range-thumb { width:16px; height:16px; border-radius:50%; border:none; background:radial-gradient(circle at 35% 35%,#f0e0b0,#c8a030 60%,#7a5a10); cursor:pointer; }
 
-  /* Main row: flip + shutter + gallery */
-  #main-row {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 8px;
-  }
+/* Main row */
+#main-row { display:flex; align-items:center; justify-content:space-between; padding:0 6px; }
 
-  .side-btn {
-    width: 48px; height: 48px;
-    border-radius: 50%; border: 1px solid var(--border);
-    background: rgba(255,255,255,0.06);
-    color: var(--text);
-    font-size: 20px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    transition: background 0.15s, transform 0.1s;
-    -webkit-backdrop-filter: blur(4px);
-    backdrop-filter: blur(4px);
-  }
-  .side-btn:active { transform: scale(0.92); background: rgba(255,255,255,0.12); }
+.side-btn { width:46px; height:46px; border-radius:50%; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text); font-size:18px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
+.side-btn:active { transform:scale(0.9); background:rgba(255,255,255,0.1); }
 
-  #shutter-wrap {
-    position: relative; display: flex; align-items: center; justify-content: center;
-  }
+#shutter-wrap { display:flex; align-items:center; justify-content:center; flex-direction:column; gap:4px; }
+#shutter-ring { width:80px; height:80px; border-radius:50%; border:3px solid rgba(224,200,144,0.35); display:flex; align-items:center; justify-content:center; transition:border-color 0.12s; }
+#shutter-ring.firing { border-color:rgba(224,200,144,0.95); }
+#shutter { width:64px; height:64px; border-radius:50%; background:radial-gradient(circle at 35% 35%,#f0e0b0,#c8a030 50%,#7a5a10); border:none; cursor:pointer; box-shadow:0 4px 18px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.2); transition:transform 0.1s,box-shadow 0.1s; -webkit-appearance:none; }
+#shutter:active, #shutter.firing { transform:scale(0.91); box-shadow:0 2px 8px rgba(0,0,0,0.8),inset 0 2px 4px rgba(0,0,0,0.3); }
 
-  #shutter-ring {
-    width: 84px; height: 84px; border-radius: 50%;
-    border: 3px solid rgba(232,213,163,0.4);
-    display: flex; align-items: center; justify-content: center;
-    transition: border-color 0.15s;
-  }
-  #shutter-ring.firing { border-color: rgba(232,213,163,0.9); }
+#roll-count { font-size:8px; letter-spacing:0.2em; color:var(--text-dim); }
 
-  #shutter {
-    width: 68px; height: 68px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #f0e0b0, #c8a84b 50%, #8a6a20);
-    border: none; cursor: pointer;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.2);
-    transition: transform 0.1s, box-shadow 0.1s;
-    -webkit-appearance: none;
-  }
-  #shutter:active, #shutter.firing {
-    transform: scale(0.93);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.8), inset 0 2px 4px rgba(0,0,0,0.3);
-  }
+#gallery-thumb { width:46px; height:46px; border-radius:3px; border:2px solid var(--border); background:var(--surface); display:flex; align-items:center; justify-content:center; font-size:9px; color:var(--text-dim); text-align:center; overflow:hidden; cursor:pointer; }
+#gallery-thumb img { width:100%; height:100%; object-fit:cover; }
 
-  /* Gallery thumbnail */
-  #gallery-thumb {
-    width: 48px; height: 48px; border-radius: 4px;
-    border: 2px solid var(--border);
-    object-fit: cover;
-    cursor: pointer;
-    transition: border-color 0.2s;
-    background: var(--surface);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 10px; color: var(--text-dim); letter-spacing: 0.05em;
-    text-align: center;
-    overflow: hidden;
-  }
-  #gallery-thumb img { width: 100%; height: 100%; object-fit: cover; }
+#film-counter { font-size:9px; letter-spacing:0.2em; color:var(--text-dim); text-align:center; padding-top:4px; }
 
-  /* ── FLASH EFFECT ── */
-  #flash {
-    position: absolute; inset: 0; z-index: 50;
-    background: white; opacity: 0; pointer-events: none;
-    transition: opacity 0.05s ease;
-  }
-  #flash.on { opacity: 0.85; }
+/* ── GALLERY ── */
+#gallery-modal { position:absolute; inset:0; z-index:100; background:var(--bg); display:none; flex-direction:column; }
+#gallery-modal.open { display:flex; }
+#gallery-header { padding:14px 18px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); }
+#gallery-title { font-family:'Special Elite',cursive; font-size:17px; color:var(--accent); letter-spacing:0.12em; }
+#gallery-close { background:none; border:none; color:var(--text); font-size:22px; cursor:pointer; }
+#gallery-grid { flex:1; overflow-y:auto; display:grid; grid-template-columns:repeat(3,1fr); gap:2px; padding:2px; }
+.gallery-item { aspect-ratio:1; position:relative; overflow:hidden; cursor:pointer; }
+.gallery-item img { width:100%; height:100%; object-fit:cover; }
+.gallery-item .dl-btn { position:absolute; bottom:4px; right:4px; background:rgba(0,0,0,0.75); border:none; border-radius:2px; color:var(--accent); font-size:13px; padding:3px 5px; cursor:pointer; opacity:0; transition:opacity 0.2s; }
+.gallery-item:active .dl-btn { opacity:1; }
+#gallery-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--text-dim); }
+#gallery-empty .icon { font-size:44px; opacity:0.25; }
+#gallery-empty p { font-size:12px; letter-spacing:0.1em; }
 
-  /* ── GALLERY MODAL ── */
-  #gallery-modal {
-    position: absolute; inset: 0; z-index: 100;
-    background: var(--bg);
-    display: none; flex-direction: column;
-  }
-  #gallery-modal.open { display: flex; }
+/* ── NO CAMERA ── */
+#no-camera { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:var(--bg); color:var(--text-dim); font-size:12px; letter-spacing:0.1em; text-align:center; padding:40px; flex-direction:column; gap:12px; z-index:20; }
 
-  #gallery-header {
-    padding: 16px 20px;
-    display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-  }
+/* Polaroid border mode */
+#polaroid-border { position:absolute; inset:0; pointer-events:none; z-index:9; display:none; }
+#polaroid-border.active { display:block; }
 
-  #gallery-title {
-    font-family: 'Special Elite', cursive;
-    font-size: 18px; color: var(--accent);
-    letter-spacing: 0.1em;
-  }
-
-  #gallery-close {
-    background: none; border: none; color: var(--text);
-    font-size: 24px; cursor: pointer; padding: 4px;
-  }
-
-  #gallery-grid {
-    flex: 1; overflow-y: auto;
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 2px; padding: 2px;
-  }
-
-  .gallery-item {
-    aspect-ratio: 1; position: relative; overflow: hidden;
-    cursor: pointer;
-  }
-  .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
-  .gallery-item .dl-btn {
-    position: absolute; bottom: 4px; right: 4px;
-    background: rgba(0,0,0,0.7);
-    border: none; border-radius: 3px;
-    color: var(--accent); font-size: 14px;
-    padding: 4px 6px; cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  .gallery-item:hover .dl-btn,
-  .gallery-item:active .dl-btn { opacity: 1; }
-
-  #gallery-empty {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 12px;
-    color: var(--text-dim);
-  }
-  #gallery-empty .icon { font-size: 48px; opacity: 0.3; }
-  #gallery-empty p { font-size: 13px; letter-spacing: 0.1em; }
-
-  /* ── PERMISSION SCREEN ── */
-  #permission-screen {
-    position: absolute; inset: 0; z-index: 200;
-    background: var(--bg);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 24px;
-    padding: 40px;
-    text-align: center;
-  }
-
-  #permission-screen h1 {
-    font-family: 'Special Elite', cursive;
-    font-size: 32px; color: var(--accent);
-    letter-spacing: 0.15em;
-  }
-
-  #permission-screen p {
-    color: var(--text-dim); font-size: 14px;
-    line-height: 1.8; letter-spacing: 0.05em;
-  }
-
-  #allow-btn {
-    background: var(--accent); color: #1a1208;
-    border: none; border-radius: 3px;
-    padding: 14px 32px;
-    font-family: 'Courier Prime', monospace;
-    font-size: 14px; font-weight: 700;
-    letter-spacing: 0.2em; text-transform: uppercase;
-    cursor: pointer;
-    transition: opacity 0.2s;
-  }
-  #allow-btn:active { opacity: 0.7; }
-
-  /* Film counter */
-  #film-counter {
-    font-size: 10px; letter-spacing: 0.2em;
-    color: var(--text-dim);
-    text-align: center; padding-top: 6px;
-  }
-
-  /* Canvas for final shot processing (hidden) */
-  #capture-canvas { display: none; }
-
-  /* No-camera fallback */
-  #no-camera {
-    position: absolute; inset: 0;
-    display: none; align-items: center; justify-content: center;
-    background: #0e0c08; color: var(--text-dim);
-    font-size: 13px; letter-spacing: 0.1em; text-align: center; padding: 40px;
-  }
+/* Canvas hidden */
+#capture-canvas { display:none; }
+#halation-canvas { display:none; }
 </style>
 </head>
 <body>
 
 <canvas id="grain"></canvas>
 <canvas id="capture-canvas"></canvas>
+<canvas id="halation-canvas"></canvas>
 
-<!-- Permission screen -->
+<!-- Permission -->
 <div id="permission-screen">
   <h1>GRAINHAUS</h1>
-  <p>A personal film camera.<br>Needs access to your camera to shoot.</p>
-  <button id="allow-btn" onclick="startCamera()">Allow Camera</button>
+  <p>Your personal film camera.<br>Needs camera access to shoot.</p>
+  <button id="allow-btn" onclick="startCamera()">Load Film</button>
 </div>
 
 <div id="app">
   <!-- Viewfinder -->
   <div id="viewfinder">
     <video id="video" autoplay playsinline muted></video>
+    <canvas id="lightleak"></canvas>
+    <canvas id="scratches"></canvas>
+    <canvas id="halation"></canvas>
+    <div id="scanlines"></div>
     <div id="film-overlay"></div>
     <div id="vignette"></div>
+    <div id="sprockets">
+      <div class="sprocket-strip left" id="sprocket-left"></div>
+      <div class="sprocket-strip right" id="sprocket-right"></div>
+    </div>
+    <svg id="polaroid-border" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="100" height="100" fill="rgba(240,230,200,0.97)"/>
+      <rect x="5" y="5" width="90" height="78" fill="transparent"/>
+      <rect x="5" y="5" width="90" height="78" fill="rgba(240,230,200,0)" stroke="rgba(240,230,200,0.97)" stroke-width="5"/>
+    </svg>
     <div id="flash"></div>
-    <div id="no-camera">📷<br><br>Camera not available.<br>Open in a browser on your device.</div>
   </div>
 
-  <!-- Corners -->
+  <!-- Overlays -->
   <div class="corner tl"></div>
   <div class="corner tr"></div>
   <div class="corner bl"></div>
   <div class="corner br"></div>
-
-  <!-- Date stamp -->
   <div id="datestamp"></div>
-  <!-- Zoom indicator -->
   <div id="zoom-indicator">1.0×</div>
+  <div id="shot-overlay">∞</div>
+  <div id="dbl-exp-indicator">◎ DBL EXP</div>
 
   <!-- Top bar -->
   <div id="topbar">
     <div id="logo">GRAINHAUS</div>
-    <div id="iso-badge">ISO 400</div>
+    <div id="topbar-right">
+      <span id="mode-badge">⚡ SPECIAL</span>
+      <span id="iso-badge">ISO 400</span>
+    </div>
   </div>
 
   <!-- Controls -->
   <div id="controls">
-    <!-- Preset strip -->
+    <!-- Tabs -->
+    <div id="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('film')">Film</button>
+      <button class="tab-btn" onclick="switchTab('camera')">Camera</button>
+      <button class="tab-btn" onclick="switchTab('effects')">FX</button>
+    </div>
+
+    <!-- Film preset strip -->
     <div id="preset-strip"></div>
+
+    <!-- Effects panel -->
+    <div id="effects-panel"></div>
+
     <!-- Zoom bar -->
     <div id="zoom-bar">
-      <span style="font-size:11px;color:var(--text-dim);">−</span>
-      <input type="range" id="zoom-slider" min="1" max="5" step="0.1" value="1">
-      <span style="font-size:11px;color:var(--text-dim);">+</span>
+      <span style="font-size:10px;color:var(--text-dim)">−</span>
+      <input type="range" id="zoom-slider" min="1" max="8" step="0.1" value="1">
+      <span style="font-size:10px;color:var(--text-dim)">+</span>
       <span id="zoom-label">1.0×</span>
     </div>
+
     <!-- Main row -->
     <div id="main-row">
-      <button class="side-btn" id="flip-btn" title="Flip camera">⇄</button>
+      <button class="side-btn" id="flip-btn">⇄</button>
       <div id="shutter-wrap">
         <div id="shutter-ring">
           <button id="shutter"></button>
         </div>
+        <div id="roll-count"></div>
       </div>
       <div id="gallery-thumb" onclick="openGallery()">
-        <span id="thumb-placeholder" style="font-size:10px;color:var(--text-dim);text-align:center;padding:4px;">ROLL</span>
+        <span style="font-size:9px;color:var(--text-dim);text-align:center;padding:2px">ROLL</span>
       </div>
     </div>
     <div id="film-counter">— 0 frames —</div>
   </div>
 
-  <!-- Gallery modal -->
+  <!-- Gallery -->
   <div id="gallery-modal">
     <div id="gallery-header">
       <span id="gallery-title">THE ROLL</span>
@@ -461,164 +293,312 @@
       <p>NO FRAMES YET.<br>START SHOOTING.</p>
     </div>
   </div>
+
+  <div id="no-camera">📷<br><br>Camera not available.<br>Open in Chrome or Safari on your device.</div>
 </div>
 
 <script>
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════
 // GRAIN ENGINE
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════
 const grainCanvas = document.getElementById('grain');
 const grainCtx = grainCanvas.getContext('2d');
-let grainFrame;
-
-function resizeGrain() {
-  grainCanvas.width = window.innerWidth;
-  grainCanvas.height = window.innerHeight;
+function resizeGrain(){ grainCanvas.width=window.innerWidth; grainCanvas.height=window.innerHeight; }
+function animateGrain(){
+  const w=grainCanvas.width,h=grainCanvas.height;
+  const img=grainCtx.createImageData(w,h); const d=img.data;
+  for(let i=0;i<d.length;i+=4){ const v=Math.random()*255|0; d[i]=v;d[i+1]=v;d[i+2]=v;d[i+3]=255; }
+  grainCtx.putImageData(img,0,0);
+  requestAnimationFrame(animateGrain);
 }
+resizeGrain(); animateGrain();
+window.addEventListener('resize',resizeGrain);
 
-function animateGrain() {
-  const w = grainCanvas.width, h = grainCanvas.height;
-  const imageData = grainCtx.createImageData(w, h);
-  const data = imageData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const v = Math.random() * 255 | 0;
-    data[i] = v; data[i+1] = v; data[i+2] = v; data[i+3] = 255;
-  }
-  grainCtx.putImageData(imageData, 0, 0);
-  grainFrame = requestAnimationFrame(animateGrain);
-}
-
-resizeGrain();
-animateGrain();
-window.addEventListener('resize', resizeGrain);
-
-// ═══════════════════════════════════════════════
-// FILM PRESETS
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════
+// ALL PRESETS
+// ═══════════════════════════════════════
 const PRESETS = [
-  {
-    id: 'kodak400',
-    name: 'KODAK 400',
-    iso: 'ISO 400',
-    swatch: 'linear-gradient(135deg, #d4a96a 0%, #e8c97a 50%, #c8885a 100%)',
-    overlay: 'rgba(220, 160, 60, 0.10)',
-    shadow: 'inset 0 0 80px rgba(180, 100, 20, 0.18)',
-    filter: 'saturate(1.15) contrast(1.08) brightness(1.02) sepia(0.18)',
-    grainOp: '0.20',
-    stamp: '#e8a020',
-  },
-  {
-    id: 'fuji400h',
-    name: 'FUJI 400H',
-    iso: 'ISO 400',
-    swatch: 'linear-gradient(135deg, #a8c8a0 0%, #c8ddb0 50%, #90b890 100%)',
-    overlay: 'rgba(80, 160, 90, 0.07)',
-    shadow: 'inset 0 0 80px rgba(40, 120, 60, 0.14)',
-    filter: 'saturate(0.92) contrast(1.04) brightness(1.04) hue-rotate(8deg)',
-    grainOp: '0.18',
-    stamp: '#a8d0a0',
-  },
-  {
-    id: 'kodakpro',
-    name: 'PORTRA 800',
-    iso: 'ISO 800',
-    swatch: 'linear-gradient(135deg, #e8c8a0 0%, #f8e0b8 50%, #d8a878 100%)',
-    overlay: 'rgba(240, 180, 100, 0.12)',
-    shadow: 'inset 0 0 80px rgba(200, 120, 40, 0.20)',
-    filter: 'saturate(1.05) contrast(1.03) brightness(1.06) sepia(0.12)',
-    grainOp: '0.26',
-    stamp: '#f0b840',
-  },
-  {
-    id: 'hp5',
-    name: 'HP5 B&W',
-    iso: 'ISO 3200',
-    swatch: 'linear-gradient(135deg, #888 0%, #bbb 50%, #555 100%)',
-    overlay: 'rgba(0,0,0,0.05)',
-    shadow: 'inset 0 0 80px rgba(0,0,0,0.22)',
-    filter: 'grayscale(1) contrast(1.15) brightness(0.97)',
-    grainOp: '0.30',
-    stamp: '#cccccc',
-  },
-  {
-    id: 'velvia',
-    name: 'VELVIA 50',
-    iso: 'ISO 50',
-    swatch: 'linear-gradient(135deg, #6090d0 0%, #a070c0 50%, #e08050 100%)',
-    overlay: 'rgba(80, 50, 180, 0.08)',
-    shadow: 'inset 0 0 80px rgba(60, 30, 160, 0.14)',
-    filter: 'saturate(1.45) contrast(1.18) brightness(0.98)',
-    grainOp: '0.12',
-    stamp: '#80b8f8',
-  },
-  {
-    id: 'lomo',
-    name: 'LOMO LC-A',
-    iso: 'ISO 1600',
-    swatch: 'linear-gradient(135deg, #c05030 0%, #e08020 50%, #802010 100%)',
-    overlay: 'rgba(200, 60, 20, 0.10)',
-    shadow: 'inset 0 0 100px rgba(160, 40, 0, 0.35)',
-    filter: 'saturate(1.30) contrast(1.25) brightness(0.90)',
-    grainOp: '0.28',
-    stamp: '#e8802a',
-  },
+  // ── CLASSIC FILM ──
+  { id:'kodak400', name:'KODAK 400', cat:'film', iso:'ISO 400', swatch:'linear-gradient(135deg,#d4a96a,#e8c97a,#c8885a)', overlay:'rgba(220,160,60,0.10)', shadow:'inset 0 0 80px rgba(180,100,20,0.18)', filter:'saturate(1.15) contrast(1.08) brightness(1.02) sepia(0.18)', grainOp:0.20, stamp:'#e8a020', halation:false, scanlines:false, pixelate:false, blur:0 },
+  { id:'fuji400h', name:'FUJI 400H', cat:'film', iso:'ISO 400', swatch:'linear-gradient(135deg,#a8c8a0,#c8ddb0,#90b890)', overlay:'rgba(80,160,90,0.07)', shadow:'inset 0 0 80px rgba(40,120,60,0.14)', filter:'saturate(0.92) contrast(1.04) brightness(1.04) hue-rotate(8deg)', grainOp:0.18, stamp:'#a8d0a0', halation:false, scanlines:false, pixelate:false, blur:0 },
+  { id:'portra800', name:'PORTRA 800', cat:'film', iso:'ISO 800', swatch:'linear-gradient(135deg,#e8c8a0,#f8e0b8,#d8a878)', overlay:'rgba(240,180,100,0.12)', shadow:'inset 0 0 80px rgba(200,120,40,0.20)', filter:'saturate(1.05) contrast(1.03) brightness(1.06) sepia(0.12)', grainOp:0.26, stamp:'#f0b840', halation:false, scanlines:false, pixelate:false, blur:0 },
+  { id:'kodachrome', name:'KODACHROME', cat:'film', iso:'ISO 64', swatch:'linear-gradient(135deg,#d04030,#e07020,#c03828)', overlay:'rgba(200,50,20,0.10)', shadow:'inset 0 0 60px rgba(160,30,10,0.20)', filter:'saturate(1.55) contrast(1.22) brightness(0.96) hue-rotate(-8deg)', grainOp:0.14, stamp:'#e84828', halation:false, scanlines:false, pixelate:false, blur:0 },
+  { id:'agfa', name:'AGFA VISTA', cat:'film', iso:'ISO 200', swatch:'linear-gradient(135deg,#e8b0c8,#d0c8e0,#b0d8c0)', overlay:'rgba(200,120,180,0.08)', shadow:'inset 0 0 80px rgba(160,80,160,0.14)', filter:'saturate(0.85) contrast(0.96) brightness(1.08) hue-rotate(20deg)', grainOp:0.16, stamp:'#e0a0d0', halation:false, scanlines:false, pixelate:false, blur:0 },
+  { id:'velvia', name:'VELVIA 50', cat:'film', iso:'ISO 50', swatch:'linear-gradient(135deg,#6090d0,#a070c0,#e08050)', overlay:'rgba(80,50,180,0.08)', shadow:'inset 0 0 80px rgba(60,30,160,0.14)', filter:'saturate(1.45) contrast(1.18) brightness(0.98)', grainOp:0.12, stamp:'#80b8f8', halation:false, scanlines:false, pixelate:false, blur:0 },
+  { id:'cinestill', name:'CINESTILL 800T', cat:'film', iso:'ISO 800', swatch:'linear-gradient(135deg,#304878,#203868,#405888)', overlay:'rgba(20,40,120,0.14)', shadow:'inset 0 0 80px rgba(10,20,100,0.28)', filter:'saturate(0.88) contrast(1.12) brightness(0.94) hue-rotate(200deg)', grainOp:0.28, stamp:'#6080c8', halation:true, scanlines:false, pixelate:false, blur:0 },
+  { id:'expired', name:'EXPIRED', cat:'film', iso:'ISO ???', swatch:'linear-gradient(135deg,#b89060,#d0b888,#908050)', overlay:'rgba(180,140,60,0.18)', shadow:'inset 0 0 100px rgba(140,100,20,0.30)', filter:'saturate(0.60) contrast(0.88) brightness(1.14) sepia(0.40)', grainOp:0.38, stamp:'#c0a040', halation:false, scanlines:false, pixelate:false, blur:0 },
+  // ── B&W ──
+  { id:'hp5', name:'HP5 B&W', cat:'film', iso:'ISO 3200', swatch:'linear-gradient(135deg,#888,#bbb,#555)', overlay:'rgba(0,0,0,0.05)', shadow:'inset 0 0 80px rgba(0,0,0,0.22)', filter:'grayscale(1) contrast(1.15) brightness(0.97)', grainOp:0.30, stamp:'#cccccc', halation:false, scanlines:false, pixelate:false, blur:0 },
+  { id:'delta3200', name:'DELTA 3200', cat:'film', iso:'ISO 3200', swatch:'linear-gradient(135deg,#444,#888,#222)', overlay:'rgba(0,0,0,0.10)', shadow:'inset 0 0 100px rgba(0,0,0,0.40)', filter:'grayscale(1) contrast(1.35) brightness(0.88)', grainOp:0.45, stamp:'#aaaaaa', halation:false, scanlines:false, pixelate:false, blur:0 },
+  // ── LO-FI / CAMERA MODELS ──
+  { id:'lomo', name:'LOMO LC-A', cat:'camera', iso:'ISO 1600', swatch:'linear-gradient(135deg,#c05030,#e08020,#802010)', overlay:'rgba(200,60,20,0.10)', shadow:'inset 0 0 120px rgba(140,30,0,0.45)', filter:'saturate(1.30) contrast(1.25) brightness(0.88)', grainOp:0.28, stamp:'#e8802a', halation:false, scanlines:false, pixelate:false, blur:0 },
+  { id:'diana', name:'DIANA F+', cat:'camera', iso:'ISO 400', swatch:'linear-gradient(135deg,#8898a8,#b0c0c8,#607080)', overlay:'rgba(80,100,140,0.10)', shadow:'inset 0 0 140px rgba(20,30,60,0.55)', filter:'saturate(0.78) contrast(0.94) brightness(1.06)', grainOp:0.22, stamp:'#90b0c8', halation:false, scanlines:false, pixelate:false, blur:1.2 },
+  { id:'polaroid', name:'POLAROID SX-70', cat:'camera', iso:'ISO 160', swatch:'linear-gradient(135deg,#e8e0c8,#f8f0e0,#d8d0b8)', overlay:'rgba(240,220,160,0.14)', shadow:'inset 0 0 60px rgba(200,180,100,0.20)', filter:'saturate(0.82) contrast(0.92) brightness(1.10) sepia(0.22)', grainOp:0.14, stamp:'#c8b060', halation:false, scanlines:false, pixelate:false, blur:0.6 },
+  { id:'canonae1', name:'CANON AE-1', cat:'camera', iso:'ISO 400', swatch:'linear-gradient(135deg,#c8a870,#e0c090,#a88850)', overlay:'rgba(200,160,80,0.09)', shadow:'inset 0 0 70px rgba(160,110,30,0.16)', filter:'saturate(1.10) contrast(1.06) brightness(1.01) sepia(0.14)', grainOp:0.18, stamp:'#d4a030', halation:false, scanlines:false, pixelate:false, blur:0 },
+  { id:'disposable', name:'DISPOSABLE', cat:'camera', iso:'ISO 800', swatch:'linear-gradient(135deg,#c0a860,#e8d080,#906820)', overlay:'rgba(220,170,40,0.13)', shadow:'inset 0 0 110px rgba(160,110,0,0.40)', filter:'saturate(1.20) contrast(1.18) brightness(0.91)', grainOp:0.35, stamp:'#f0c028', halation:false, scanlines:false, pixelate:false, blur:0 },
+  // ── DIGITAL DEGRADED ──
+  { id:'nokia3310', name:'NOKIA 3310', cat:'digital', iso:'VGA', swatch:'linear-gradient(135deg,#304820,#486830,#203810)', overlay:'rgba(20,60,10,0.25)', shadow:'inset 0 0 60px rgba(0,40,0,0.50)', filter:'grayscale(0.6) saturate(0.4) contrast(1.8) brightness(0.85)', grainOp:0.55, stamp:'#60a040', halation:false, scanlines:true, pixelate:true, pixelSize:4, blur:0 },
+  { id:'sony2003', name:'SONY DSC 2003', cat:'digital', iso:'ISO 100', swatch:'linear-gradient(135deg,#607080,#8090a0,#405060)', overlay:'rgba(40,80,120,0.12)', shadow:'inset 0 0 60px rgba(20,40,80,0.30)', filter:'saturate(1.40) contrast(1.30) brightness(1.05)', grainOp:0.32, stamp:'#80a8d0', halation:false, scanlines:true, pixelate:true, pixelSize:2, blur:0 },
+  { id:'vhs', name:'VHS TAPE', cat:'digital', iso:'TAPE', swatch:'linear-gradient(135deg,#202040,#303060,#101030)', overlay:'rgba(10,10,60,0.20)', shadow:'inset 0 0 80px rgba(0,0,80,0.35)', filter:'saturate(1.15) contrast(1.10) brightness(0.90) hue-rotate(200deg)', grainOp:0.40, stamp:'#6060c0', halation:false, scanlines:true, pixelate:false, blur:0.8 },
+  { id:'webcam2000', name:'WEBCAM 2000', cat:'digital', iso:'30fps', swatch:'linear-gradient(135deg,#506878,#7090a0,#384858)', overlay:'rgba(30,60,80,0.15)', shadow:'inset 0 0 50px rgba(10,30,60,0.25)', filter:'saturate(0.70) contrast(1.15) brightness(1.08)', grainOp:0.42, stamp:'#70a0c0', halation:false, scanlines:true, pixelate:true, pixelSize:3, blur:0.4 },
+  // ── ARTISTIC ──
+  { id:'dreamy', name:'DREAMY', cat:'art', iso:'∞', swatch:'linear-gradient(135deg,#d0a8e8,#e8c0f0,#b890d8)', overlay:'rgba(180,100,240,0.09)', shadow:'inset 0 0 80px rgba(140,60,200,0.20)', filter:'saturate(0.75) contrast(0.88) brightness(1.15) hue-rotate(280deg)', grainOp:0.10, stamp:'#d0a0f0', halation:false, scanlines:false, pixelate:false, blur:2.0 },
+  { id:'infrared', name:'INFRARED', cat:'art', iso:'ISO 400', swatch:'linear-gradient(135deg,#f0e0e8,#f8c8d0,#e0a8b8)', overlay:'rgba(240,120,140,0.12)', shadow:'inset 0 0 80px rgba(200,60,80,0.20)', filter:'saturate(0.50) contrast(1.30) brightness(1.10) hue-rotate(120deg) invert(0.15)', grainOp:0.20, stamp:'#f0a0b8', halation:false, scanlines:false, pixelate:false, blur:0 },
+  { id:'cyberpunk', name:'CYBERPUNK', cat:'art', iso:'NEON', swatch:'linear-gradient(135deg,#201040,#401080,#008080)', overlay:'rgba(0,200,200,0.07)', shadow:'inset 0 0 100px rgba(100,0,200,0.30)', filter:'saturate(2.0) contrast(1.40) brightness(0.90) hue-rotate(260deg)', grainOp:0.22, stamp:'#00f0f0', halation:true, scanlines:true, pixelate:false, blur:0 },
+  { id:'golden', name:'GOLDEN HOUR', cat:'art', iso:'ISO 100', swatch:'linear-gradient(135deg,#e8b030,#f8c840,#c87810)', overlay:'rgba(240,160,20,0.16)', shadow:'inset 0 0 80px rgba(200,100,0,0.25)', filter:'saturate(1.60) contrast(1.10) brightness(1.08) sepia(0.30)', grainOp:0.14, stamp:'#f8c020', halation:true, scanlines:false, pixelate:false, blur:0 },
+  { id:'silkychrome', name:'SILKY CHROME', cat:'art', iso:'ISO 50', swatch:'linear-gradient(135deg,#a0b8d0,#c0d8e8,#8098b0)', overlay:'rgba(100,160,220,0.08)', shadow:'inset 0 0 70px rgba(60,100,180,0.16)', filter:'saturate(1.20) contrast(1.05) brightness(1.05) hue-rotate(190deg)', grainOp:0.09, stamp:'#a0c8f0', halation:false, scanlines:false, pixelate:false, blur:0.5 },
 ];
 
 let currentPreset = PRESETS[0];
+let currentTab = 'film';
 
+// ═══════════════════════════════════════
+// EFFECTS STATE
+// ═══════════════════════════════════════
+const FX = {
+  lightLeaks: false,
+  scratches: false,
+  sprockets: false,
+  shake: false,
+  doubleExposure: false,
+  shotLimit: false,
+  shotsLeft: 36,
+  totalShots: 36,
+  halation: false,
+};
+
+// ═══════════════════════════════════════
+// BUILD UI
+// ═══════════════════════════════════════
 function buildPresetStrip() {
   const strip = document.getElementById('preset-strip');
-  PRESETS.forEach((p, i) => {
+  strip.innerHTML = '';
+  const cats = { film:'film', camera:'camera', digital:'digital', art:'art' };
+  const tabCat = currentTab === 'film' ? ['film'] : currentTab === 'camera' ? ['camera','digital'] : ['art'];
+  const filtered = currentTab === 'effects' ? [] : PRESETS.filter(p => tabCat.includes(p.cat));
+
+  filtered.forEach((p, i) => {
     const btn = document.createElement('button');
-    btn.className = 'preset-btn' + (i === 0 ? ' active' : '');
+    btn.className = 'preset-btn' + (p.id === currentPreset.id ? ' active' : '');
     btn.dataset.id = p.id;
-    btn.innerHTML = `
-      <div class="preset-swatch" style="background:${p.swatch};"></div>
-      <span class="preset-label">${p.name}</span>
-    `;
-    btn.addEventListener('click', () => selectPreset(p, btn));
+    btn.innerHTML = `<div class="preset-swatch" style="background:${p.swatch}"></div><span class="preset-label">${p.name}</span>`;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectPreset(p);
+    });
     strip.appendChild(btn);
   });
 }
 
-function selectPreset(preset, btn) {
-  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+function buildEffectsPanel() {
+  const panel = document.getElementById('effects-panel');
+  const effectsList = [
+    { key:'lightLeaks', label:'Light Leaks' },
+    { key:'scratches', label:'Film Scratches' },
+    { key:'sprockets', label:'Sprockets' },
+    { key:'halation', label:'Halation' },
+    { key:'shake', label:'Camera Shake', red:true },
+    { key:'doubleExposure', label:'Double Exposure', red:true },
+    { key:'shotLimit', label:'36-Shot Limit', red:true },
+  ];
+  panel.innerHTML = '';
+  effectsList.forEach(e => {
+    const btn = document.createElement('button');
+    btn.className = 'eff-btn' + (FX[e.key] ? (' on' + (e.red ? ' red' : '')) : '');
+    btn.textContent = FX[e.key] ? '● ' + e.label : '○ ' + e.label;
+    btn.addEventListener('click', () => toggleEffect(e.key, btn, e.red));
+    panel.appendChild(btn);
+  });
+}
+
+function toggleEffect(key, btn, isRed) {
+  FX[key] = !FX[key];
+  btn.className = 'eff-btn' + (FX[key] ? (' on' + (isRed ? ' red' : '')) : '');
+  btn.textContent = FX[key] ? '● ' + btn.textContent.slice(2) : '○ ' + btn.textContent.slice(2);
+
+  if (key === 'sprockets') {
+    document.getElementById('sprockets').style.display = FX.sprockets ? 'flex' : 'none';
+    buildSprockets();
+  }
+  if (key === 'shotLimit') {
+    FX.shotsLeft = 36; FX.totalShots = 36;
+    document.getElementById('shot-overlay').textContent = FX.shotLimit ? `36/36` : '∞';
+  }
+  if (key === 'doubleExposure') {
+    dblExpFirstShot = null;
+    document.getElementById('dbl-exp-indicator').className = FX.doubleExposure ? 'active' : '';
+    document.getElementById('dbl-exp-indicator').textContent = '◎ FRAME 1';
+  }
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', ['film','camera','effects'].indexOf(tab) === i));
+  const strip = document.getElementById('preset-strip');
+  const panel = document.getElementById('effects-panel');
+  const zoomBar = document.getElementById('zoom-bar');
+
+  if (tab === 'effects') {
+    strip.style.display = 'none';
+    panel.classList.add('visible');
+    buildEffectsPanel();
+  } else {
+    strip.style.display = 'flex';
+    panel.classList.remove('visible');
+    buildPresetStrip();
+  }
+}
+
+function buildSprockets() {
+  ['sprocket-left','sprocket-right'].forEach(id => {
+    const strip = document.getElementById(id);
+    strip.innerHTML = '';
+    for (let i = 0; i < 16; i++) {
+      const hole = document.createElement('div');
+      hole.className = 'sprocket-hole';
+      strip.appendChild(hole);
+    }
+  });
+}
+
+// ═══════════════════════════════════════
+// PRESET APPLICATION
+// ═══════════════════════════════════════
+function selectPreset(preset) {
   currentPreset = preset;
   applyPreset(preset);
 }
 
-function applyPreset(preset) {
+function applyPreset(p) {
   const overlay = document.getElementById('film-overlay');
   const video = document.getElementById('video');
-  const isoBadge = document.getElementById('iso-badge');
-  const datestamp = document.getElementById('datestamp');
+  const iso = document.getElementById('iso-badge');
+  const stamp = document.getElementById('datestamp');
+  const scanlines = document.getElementById('scanlines');
 
-  overlay.style.background = preset.overlay;
-  overlay.style.boxShadow = preset.shadow;
-  video.style.filter = preset.filter;
-  document.documentElement.style.setProperty('--grain-opacity', preset.grainOp);
-  isoBadge.textContent = preset.iso;
-  datestamp.style.color = preset.stamp;
-  datestamp.style.textShadow = `0 0 10px ${preset.stamp}cc, 0 0 20px ${preset.stamp}66`;
+  overlay.style.background = p.overlay;
+  overlay.style.boxShadow = p.shadow;
+  video.style.filter = p.filter;
+
+  // Blur
+  if (p.blur > 0) {
+    video.style.filter = p.filter + ` blur(${p.blur}px)`;
+  }
+
+  document.documentElement.style.setProperty('--grain-opacity', p.grainOp);
+  iso.textContent = p.iso;
+  stamp.style.color = p.stamp;
+  stamp.style.textShadow = `0 0 10px ${p.stamp}cc, 0 0 20px ${p.stamp}66`;
+
+  // Scanlines
+  scanlines.style.opacity = p.scanlines ? '1' : '0';
+
+  // Pixelate (CSS filter hack)
+  if (p.pixelate) {
+    const px = p.pixelSize || 3;
+    video.style.imageRendering = 'pixelated';
+    // Scale down and up for pixelation effect
+    video.style.filter = p.filter + ` contrast(${1 + px * 0.05})`;
+  } else {
+    video.style.imageRendering = '';
+  }
+
+  // Halation indicator
+  document.getElementById('mode-badge').style.display = (p.halation || p.cat === 'art') ? 'block' : 'none';
+  document.getElementById('mode-badge').textContent = p.cat === 'art' ? '✦ ART' : '⚡ HALO';
+
+  updateDateStamp();
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════
 // DATE STAMP
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════
 function updateDateStamp() {
   const now = new Date();
   const y = now.getFullYear().toString().slice(2);
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
+  const m = String(now.getMonth()+1).padStart(2,'0');
+  const d = String(now.getDate()).padStart(2,'0');
   document.getElementById('datestamp').textContent = `${d}·${m}·'${y}`;
 }
 updateDateStamp();
 setInterval(updateDateStamp, 60000);
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════
+// LIGHT LEAKS
+// ═══════════════════════════════════════
+const leakCanvas = document.getElementById('lightleak');
+const leakCtx = leakCanvas.getContext('2d');
+let leakPhase = 0;
+
+function resizeLeakCanvas() {
+  leakCanvas.width = window.innerWidth;
+  leakCanvas.height = window.innerHeight;
+}
+resizeLeakCanvas();
+window.addEventListener('resize', resizeLeakCanvas);
+
+function animateLightLeaks() {
+  if (!FX.lightLeaks) { leakCanvas.classList.remove('active'); requestAnimationFrame(animateLightLeaks); return; }
+  leakCanvas.classList.add('active');
+  leakPhase += 0.008;
+  const w = leakCanvas.width, h = leakCanvas.height;
+  leakCtx.clearRect(0,0,w,h);
+
+  // Leak 1 — top left red/orange blob
+  const g1 = leakCtx.createRadialGradient(w*0.1 + Math.sin(leakPhase)*w*0.05, h*0.05, 0, w*0.1, h*0.05, w*0.5);
+  g1.addColorStop(0, `rgba(255,80,20,${0.18 + Math.sin(leakPhase*0.7)*0.08})`);
+  g1.addColorStop(0.4, `rgba(255,140,20,${0.08 + Math.sin(leakPhase)*0.04})`);
+  g1.addColorStop(1, 'rgba(255,80,20,0)');
+  leakCtx.fillStyle = g1;
+  leakCtx.fillRect(0,0,w,h);
+
+  // Leak 2 — bottom right subtle yellow
+  const g2 = leakCtx.createRadialGradient(w*0.9 + Math.cos(leakPhase*0.6)*w*0.03, h*0.95, 0, w*0.9, h*0.95, w*0.4);
+  g2.addColorStop(0, `rgba(255,220,0,${0.10 + Math.cos(leakPhase*0.8)*0.05})`);
+  g2.addColorStop(1, 'rgba(255,200,0,0)');
+  leakCtx.fillStyle = g2;
+  leakCtx.fillRect(0,0,w,h);
+
+  requestAnimationFrame(animateLightLeaks);
+}
+animateLightLeaks();
+
+// ═══════════════════════════════════════
+// SCRATCHES
+// ═══════════════════════════════════════
+const scratchCanvas = document.getElementById('scratches');
+const scratchCtx = scratchCanvas.getContext('2d');
+let scratchTimer = 0;
+
+function resizeScratch() { scratchCanvas.width=window.innerWidth; scratchCanvas.height=window.innerHeight; }
+resizeScratch(); window.addEventListener('resize',resizeScratch);
+
+function drawScratches() {
+  scratchCtx.clearRect(0,0,scratchCanvas.width,scratchCanvas.height);
+  if (!FX.scratches) { requestAnimationFrame(drawScratches); return; }
+  scratchTimer++;
+  if (scratchTimer % 3 !== 0) { requestAnimationFrame(drawScratches); return; }
+
+  const w = scratchCanvas.width, h = scratchCanvas.height;
+  const numScratches = Math.random() < 0.3 ? Math.floor(Math.random()*3)+1 : 0;
+  for (let i = 0; i < numScratches; i++) {
+    const x = Math.random()*w;
+    const opacity = 0.1 + Math.random()*0.3;
+    scratchCtx.beginPath();
+    scratchCtx.moveTo(x, 0);
+    scratchCtx.lineTo(x + (Math.random()-0.5)*8, h);
+    scratchCtx.strokeStyle = `rgba(255,240,200,${opacity})`;
+    scratchCtx.lineWidth = Math.random()*1.2 + 0.3;
+    scratchCtx.stroke();
+  }
+  requestAnimationFrame(drawScratches);
+}
+drawScratches();
+
+// ═══════════════════════════════════════
 // CAMERA
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════
 let stream = null;
 let facingMode = 'environment';
 const video = document.getElementById('video');
@@ -628,14 +608,14 @@ async function startCamera() {
   try {
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode, width: { ideal: 3840 }, height: { ideal: 2160 } },
+      video: { facingMode, width:{ideal:3840}, height:{ideal:2160} },
       audio: false
     });
     video.srcObject = stream;
     document.getElementById('no-camera').style.display = 'none';
-  } catch (e) {
+    applyPreset(currentPreset);
+  } catch(e) {
     document.getElementById('no-camera').style.display = 'flex';
-    console.error(e);
   }
 }
 
@@ -644,171 +624,14 @@ document.getElementById('flip-btn').addEventListener('click', () => {
   currentZoom = 1;
   document.getElementById('zoom-slider').value = 1;
   document.getElementById('zoom-label').textContent = '1.0×';
-  document.getElementById('video').style.transform = '';
+  video.style.transform = '';
   startCamera();
 });
 
-// ═══════════════════════════════════════════════
-// CAPTURE
-// ═══════════════════════════════════════════════
-const photos = []; // { dataUrl, preset, date }
-const captureCanvas = document.getElementById('capture-canvas');
-const captureCtx = captureCanvas.getContext('2d');
-
-function takePhoto() {
-  if (!stream) return;
-
-  // Flash
-  const flash = document.getElementById('flash');
-  const shutter = document.getElementById('shutter');
-  const ring = document.getElementById('shutter-ring');
-  flash.classList.add('on');
-  shutter.classList.add('firing');
-  ring.classList.add('firing');
-  setTimeout(() => {
-    flash.classList.remove('on');
-    shutter.classList.remove('firing');
-    ring.classList.remove('firing');
-  }, 120);
-
-  // Draw video — cropped to match zoom level
-  const vw = video.videoWidth || 1920;
-  const vh = video.videoHeight || 1080;
-  captureCanvas.width = vw;
-  captureCanvas.height = vh;
-
-  captureCtx.filter = currentPreset.filter;
-  if (currentZoom > 1) {
-    // Crop centre to simulate zoom
-    const cropW = vw / currentZoom;
-    const cropH = vh / currentZoom;
-    const cropX = (vw - cropW) / 2;
-    const cropY = (vh - cropH) / 2;
-    captureCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, vw, vh);
-  } else {
-    captureCtx.drawImage(video, 0, 0, vw, vh);
-  }
-  captureCtx.filter = 'none';
-
-  // Color overlay
-  captureCtx.fillStyle = currentPreset.overlay;
-  captureCtx.fillRect(0, 0, vw, vh);
-
-  // Vignette
-  const vGrad = captureCtx.createRadialGradient(vw/2, vh/2, vw*0.25, vw/2, vh/2, vw*0.75);
-  vGrad.addColorStop(0, 'rgba(0,0,0,0)');
-  vGrad.addColorStop(1, 'rgba(0,0,0,0.55)');
-  captureCtx.fillStyle = vGrad;
-  captureCtx.fillRect(0, 0, vw, vh);
-
-  // Grain
-  const grainImageData = captureCtx.createImageData(vw, vh);
-  const gData = grainImageData.data;
-  for (let i = 0; i < gData.length; i += 4) {
-    const v = (Math.random() * 255) | 0;
-    gData[i] = v; gData[i+1] = v; gData[i+2] = v;
-    gData[i+3] = Math.round(parseFloat(currentPreset.grainOp) * 200);
-  }
-  // Blend grain in overlay mode via globalCompositeOperation
-  const tmpCanvas = document.createElement('canvas');
-  tmpCanvas.width = vw; tmpCanvas.height = vh;
-  const tmpCtx = tmpCanvas.getContext('2d');
-  tmpCtx.putImageData(grainImageData, 0, 0);
-  captureCtx.globalCompositeOperation = 'overlay';
-  captureCtx.drawImage(tmpCanvas, 0, 0);
-  captureCtx.globalCompositeOperation = 'source-over';
-
-  // Date stamp
-  const now = new Date();
-  const y = now.getFullYear().toString().slice(2);
-  const mo = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const stampText = `${d}·${mo}·'${y}`;
-  const fs = Math.round(vw * 0.022);
-  captureCtx.font = `${fs}px 'Courier Prime', monospace`;
-  captureCtx.fillStyle = currentPreset.stamp;
-  captureCtx.shadowColor = currentPreset.stamp;
-  captureCtx.shadowBlur = vw * 0.008;
-  captureCtx.textAlign = 'right';
-  captureCtx.fillText(stampText, vw - vw*0.03, vh - vh*0.05);
-  captureCtx.shadowBlur = 0;
-
-  // Preset name (tiny, bottom-left)
-  captureCtx.font = `${Math.round(fs*0.6)}px 'Courier Prime', monospace`;
-  captureCtx.fillStyle = 'rgba(232,213,163,0.4)';
-  captureCtx.textAlign = 'left';
-  captureCtx.fillText(currentPreset.name, vw*0.03, vh - vh*0.05);
-
-  const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.94);
-  const photo = { dataUrl, preset: currentPreset.name, date: new Date() };
-  photos.unshift(photo);
-
-  updateCounter();
-  updateThumb(dataUrl);
-}
-
-document.getElementById('shutter').addEventListener('click', takePhoto);
-
-function updateCounter() {
-  document.getElementById('film-counter').textContent = `— ${photos.length} frame${photos.length !== 1 ? 's' : ''} —`;
-}
-
-function updateThumb(dataUrl) {
-  const thumb = document.getElementById('gallery-thumb');
-  thumb.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;">`;
-}
-
-// ═══════════════════════════════════════════════
-// GALLERY
-// ═══════════════════════════════════════════════
-function openGallery() {
-  const modal = document.getElementById('gallery-modal');
-  const grid = document.getElementById('gallery-grid');
-  const empty = document.getElementById('gallery-empty');
-  modal.classList.add('open');
-
-  grid.innerHTML = '';
-  if (photos.length === 0) {
-    grid.style.display = 'none';
-    empty.style.display = 'flex';
-  } else {
-    grid.style.display = 'grid';
-    empty.style.display = 'none';
-    photos.forEach((p, i) => {
-      const item = document.createElement('div');
-      item.className = 'gallery-item';
-      item.innerHTML = `
-        <img src="${p.dataUrl}" alt="Frame ${i+1}">
-        <button class="dl-btn" title="Save">⬇</button>
-      `;
-      item.querySelector('.dl-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        downloadPhoto(p, i);
-      });
-      item.addEventListener('click', () => downloadPhoto(p, i));
-      grid.appendChild(item);
-    });
-  }
-}
-
-function closeGallery() {
-  document.getElementById('gallery-modal').classList.remove('open');
-}
-
-function downloadPhoto(photo, index) {
-  const a = document.createElement('a');
-  const d = photo.date;
-  const fname = `grainhaus_${photo.preset.replace(/\s/g,'_')}_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${index+1}.jpg`;
-  a.href = photo.dataUrl;
-  a.download = fname;
-  a.click();
-}
-
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════
 // ZOOM
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════
 let currentZoom = 1;
-let maxZoom = 5;
 let zoomIndicatorTimeout;
 
 function showZoomIndicator(val) {
@@ -816,89 +639,324 @@ function showZoomIndicator(val) {
   el.textContent = val.toFixed(1) + '×';
   el.classList.add('visible');
   clearTimeout(zoomIndicatorTimeout);
-  zoomIndicatorTimeout = setTimeout(() => el.classList.remove('visible'), 1500);
+  zoomIndicatorTimeout = setTimeout(() => el.classList.remove('visible'), 1400);
 }
 
 async function applyZoom(val) {
-  currentZoom = val;
-  document.getElementById('zoom-label').textContent = val.toFixed(1) + '×';
-  document.getElementById('zoom-slider').value = val;
-  showZoomIndicator(val);
-
+  currentZoom = parseFloat(val.toFixed(1));
+  document.getElementById('zoom-label').textContent = currentZoom.toFixed(1) + '×';
+  document.getElementById('zoom-slider').value = currentZoom;
+  showZoomIndicator(currentZoom);
   if (!stream) return;
   const track = stream.getVideoTracks()[0];
   if (!track) return;
-
   try {
     const caps = track.getCapabilities();
-    if (caps.zoom) {
-      const min = caps.zoom.min || 1;
-      const max = caps.zoom.max || 5;
-      const clamped = Math.min(max, Math.max(min, val));
-      await track.applyConstraints({ advanced: [{ zoom: clamped }] });
-      maxZoom = max;
-      document.getElementById('zoom-slider').max = Math.min(max, 10);
+    if (caps && caps.zoom) {
+      const mn = caps.zoom.min||1, mx = caps.zoom.max||8;
+      await track.applyConstraints({ advanced:[{ zoom: Math.min(mx, Math.max(mn, currentZoom)) }] });
+      document.getElementById('zoom-slider').max = Math.min(mx, 10);
     } else {
-      // Fallback: CSS scale on video
-      const scale = val;
-      document.getElementById('video').style.transform = `scale(${scale})`;
-      document.getElementById('video').style.transformOrigin = 'center center';
+      video.style.transform = `scale(${currentZoom})`;
     }
-  } catch (e) {
-    // Fallback
-    document.getElementById('video').style.transform = `scale(${val})`;
-    document.getElementById('video').style.transformOrigin = 'center center';
+  } catch(e) {
+    video.style.transform = `scale(${currentZoom})`;
   }
 }
 
-// Slider input
-document.getElementById('zoom-slider').addEventListener('input', e => {
-  applyZoom(parseFloat(e.target.value));
-});
+document.getElementById('zoom-slider').addEventListener('input', e => applyZoom(parseFloat(e.target.value)));
 
-// Pinch-to-zoom
-let lastPinchDist = null;
-let pinchStartZoom = 1;
-
+// Pinch
+let lastPinchDist = null, pinchStartZoom = 1;
 document.getElementById('viewfinder').addEventListener('touchstart', e => {
   if (e.touches.length === 2) {
-    lastPinchDist = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
+    lastPinchDist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
     pinchStartZoom = currentZoom;
   }
-}, { passive: true });
-
+}, {passive:true});
 document.getElementById('viewfinder').addEventListener('touchmove', e => {
-  if (e.touches.length === 2 && lastPinchDist !== null) {
-    const dist = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
-    const ratio = dist / lastPinchDist;
-    const sliderMax = parseFloat(document.getElementById('zoom-slider').max);
-    const newZoom = Math.min(sliderMax, Math.max(1, pinchStartZoom * ratio));
-    applyZoom(parseFloat(newZoom.toFixed(1)));
+  if (e.touches.length === 2 && lastPinchDist) {
+    const dist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    const max = parseFloat(document.getElementById('zoom-slider').max);
+    applyZoom(Math.min(max, Math.max(1, pinchStartZoom * dist / lastPinchDist)));
   }
-}, { passive: true });
+}, {passive:true});
+document.getElementById('viewfinder').addEventListener('touchend', e => { if (e.touches.length < 2) lastPinchDist = null; }, {passive:true});
 
-document.getElementById('viewfinder').addEventListener('touchend', e => {
-  if (e.touches.length < 2) lastPinchDist = null;
-}, { passive: true });
+// ═══════════════════════════════════════
+// DOUBLE EXPOSURE
+// ═══════════════════════════════════════
+let dblExpFirstShot = null;
 
-// Reset zoom on camera flip
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════
+// CAPTURE
+// ═══════════════════════════════════════
+const photos = [];
+const captureCanvas = document.getElementById('capture-canvas');
+const captureCtx = captureCanvas.getContext('2d');
+
+function takePhoto() {
+  if (!stream) return;
+
+  // Shot limit
+  if (FX.shotLimit) {
+    if (FX.shotsLeft <= 0) { showToast('ROLL FINISHED — 36 frames used'); return; }
+    FX.shotsLeft--;
+    document.getElementById('shot-overlay').textContent = `${FX.shotsLeft}/${FX.totalShots}`;
+  }
+
+  // Flash
+  const flash = document.getElementById('flash');
+  const shutterBtn = document.getElementById('shutter');
+  const ring = document.getElementById('shutter-ring');
+  flash.classList.add('on');
+  shutterBtn.classList.add('firing');
+  ring.classList.add('firing');
+  setTimeout(() => { flash.classList.remove('on'); shutterBtn.classList.remove('firing'); ring.classList.remove('firing'); }, 100);
+
+  // Camera shake FX
+  if (FX.shake) {
+    document.getElementById('viewfinder').classList.add('shaking');
+    setTimeout(() => document.getElementById('viewfinder').classList.remove('shaking'), 520);
+  }
+
+  // Draw
+  const vw = video.videoWidth || 1920;
+  const vh = video.videoHeight || 1080;
+  captureCanvas.width = vw;
+  captureCanvas.height = vh;
+
+  // Zoom crop
+  captureCtx.filter = currentPreset.filter + (currentPreset.blur > 0 ? ` blur(${currentPreset.blur}px)` : '');
+  if (currentZoom > 1 && !stream.getVideoTracks()[0]?.getCapabilities()?.zoom) {
+    const cw = vw/currentZoom, ch = vh/currentZoom;
+    captureCtx.drawImage(video, (vw-cw)/2, (vh-ch)/2, cw, ch, 0, 0, vw, vh);
+  } else {
+    captureCtx.drawImage(video, 0, 0, vw, vh);
+  }
+  captureCtx.filter = 'none';
+
+  // Pixelate for digital modes
+  if (currentPreset.pixelate) {
+    const px = currentPreset.pixelSize || 3;
+    const tmpC = document.createElement('canvas');
+    tmpC.width = Math.floor(vw/px); tmpC.height = Math.floor(vh/px);
+    tmpC.getContext('2d').drawImage(captureCanvas, 0, 0, tmpC.width, tmpC.height);
+    captureCtx.imageSmoothingEnabled = false;
+    captureCtx.drawImage(tmpC, 0, 0, vw, vh);
+    captureCtx.imageSmoothingEnabled = true;
+  }
+
+  // Double exposure blend
+  if (FX.doubleExposure) {
+    if (!dblExpFirstShot) {
+      dblExpFirstShot = captureCanvas.toDataURL('image/jpeg', 0.95);
+      document.getElementById('dbl-exp-indicator').textContent = '◎ FRAME 2';
+      showToast('FRAME 1 CAPTURED — shoot again to blend');
+      updateCounter(); updateThumb(dblExpFirstShot);
+      return;
+    } else {
+      const img = new Image();
+      img.onload = () => {
+        captureCtx.globalAlpha = 0.55;
+        captureCtx.drawImage(img, 0, 0, vw, vh);
+        captureCtx.globalAlpha = 1.0;
+        finalizeSave(vw, vh);
+        dblExpFirstShot = null;
+        document.getElementById('dbl-exp-indicator').textContent = '◎ FRAME 1';
+      };
+      img.src = dblExpFirstShot;
+      return;
+    }
+  }
+
+  finalizeSave(vw, vh);
+}
+
+function finalizeSave(vw, vh) {
+  const p = currentPreset;
+
+  // Color overlay
+  captureCtx.fillStyle = p.overlay;
+  captureCtx.fillRect(0,0,vw,vh);
+
+  // Vignette
+  const vGrad = captureCtx.createRadialGradient(vw/2,vh/2,vw*0.22,vw/2,vh/2,vw*0.75);
+  vGrad.addColorStop(0,'rgba(0,0,0,0)');
+  vGrad.addColorStop(1,'rgba(0,0,0,0.65)');
+  captureCtx.fillStyle = vGrad;
+  captureCtx.fillRect(0,0,vw,vh);
+
+  // Halation (Cinestill-style red bleed around highlights)
+  if (p.halation || FX.halation) {
+    const hC = document.createElement('canvas'); hC.width=vw; hC.height=vh;
+    const hX = hC.getContext('2d');
+    hX.drawImage(captureCanvas, 0,0,vw,vh);
+    hX.filter = 'blur(18px)';
+    hX.globalCompositeOperation = 'screen';
+    hX.fillStyle = 'rgba(255,30,10,0.18)';
+    hX.fillRect(0,0,vw,vh);
+    captureCtx.globalCompositeOperation = 'screen';
+    captureCtx.filter = 'blur(10px)';
+    captureCtx.globalAlpha = 0.22;
+    captureCtx.drawImage(hC, 0,0,vw,vh);
+    captureCtx.filter = 'none';
+    captureCtx.globalAlpha = 1.0;
+    captureCtx.globalCompositeOperation = 'source-over';
+  }
+
+  // Light leaks baked in
+  if (FX.lightLeaks) {
+    const lg = captureCtx.createRadialGradient(vw*0.05, vh*0.05, 0, vw*0.05, vh*0.05, vw*0.55);
+    lg.addColorStop(0,'rgba(255,80,20,0.20)'); lg.addColorStop(1,'rgba(255,80,20,0)');
+    captureCtx.fillStyle = lg; captureCtx.fillRect(0,0,vw,vh);
+  }
+
+  // Scratches baked
+  if (FX.scratches && Math.random() < 0.5) {
+    const ns = Math.floor(Math.random()*3)+1;
+    for(let i=0;i<ns;i++){
+      const x = Math.random()*vw;
+      captureCtx.beginPath();
+      captureCtx.moveTo(x,0);
+      captureCtx.lineTo(x+(Math.random()-0.5)*10,vh);
+      captureCtx.strokeStyle = `rgba(255,240,200,${0.08+Math.random()*0.22})`;
+      captureCtx.lineWidth = Math.random()*1.5+0.3;
+      captureCtx.stroke();
+    }
+  }
+
+  // Scanlines baked
+  if (p.scanlines) {
+    for(let y=0;y<vh;y+=4){
+      captureCtx.fillStyle = 'rgba(0,0,0,0.10)';
+      captureCtx.fillRect(0,y,vw,2);
+    }
+  }
+
+  // Grain
+  const gImg = captureCtx.createImageData(vw,vh);
+  const gD = gImg.data;
+  for(let i=0;i<gD.length;i+=4){ const v=Math.random()*255|0; gD[i]=v;gD[i+1]=v;gD[i+2]=v;gD[i+3]=Math.round(p.grainOp*210); }
+  const gC = document.createElement('canvas'); gC.width=vw; gC.height=vh;
+  gC.getContext('2d').putImageData(gImg,0,0);
+  captureCtx.globalCompositeOperation='overlay';
+  captureCtx.drawImage(gC,0,0);
+  captureCtx.globalCompositeOperation='source-over';
+
+  // Sprocket holes baked
+  if (FX.sprockets) {
+    const sw = vw*0.04;
+    captureCtx.fillStyle = 'rgba(0,0,0,0.72)';
+    captureCtx.fillRect(0,0,sw,vh);
+    captureCtx.fillRect(vw-sw,0,sw,vh);
+    const holeH = vh*0.02, holeW = sw*0.5, gapH = vh/16;
+    for(let i=0;i<16;i++){
+      const hy = i*gapH + gapH*0.2;
+      captureCtx.fillStyle='rgba(10,8,5,0.9)';
+      captureCtx.fillRect(sw*0.25, hy, holeW, holeH);
+      captureCtx.fillRect(vw-sw+sw*0.25, hy, holeW, holeH);
+    }
+  }
+
+  // Date stamp
+  const now = new Date();
+  const stampText = `${String(now.getDate()).padStart(2,'0')}·${String(now.getMonth()+1).padStart(2,'0')}·'${now.getFullYear().toString().slice(2)}`;
+  const fs = Math.round(vw*0.021);
+  captureCtx.font = `${fs}px 'Courier Prime', monospace`;
+  captureCtx.fillStyle = p.stamp;
+  captureCtx.shadowColor = p.stamp;
+  captureCtx.shadowBlur = vw*0.007;
+  captureCtx.textAlign = 'right';
+  captureCtx.fillText(stampText, vw-vw*0.025, vh-vh*0.045);
+  captureCtx.shadowBlur=0;
+
+  // Preset name
+  captureCtx.font = `${Math.round(fs*0.55)}px 'Courier Prime', monospace`;
+  captureCtx.fillStyle = 'rgba(224,200,144,0.38)';
+  captureCtx.textAlign='left';
+  captureCtx.fillText(p.name, vw*0.025, vh-vh*0.045);
+
+  // GRAINHAUS watermark tiny
+  captureCtx.font = `${Math.round(fs*0.5)}px 'Special Elite', cursive`;
+  captureCtx.fillStyle='rgba(224,200,144,0.22)';
+  captureCtx.textAlign='right';
+  captureCtx.fillText('GRAINHAUS', vw-vw*0.025, vh-vh*0.045-fs*1.2);
+
+  const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.93);
+  photos.unshift({ dataUrl, preset:p.name, date:new Date() });
+  updateCounter();
+  updateThumb(dataUrl);
+}
+
+document.getElementById('shutter').addEventListener('click', takePhoto);
+
+function updateCounter() {
+  document.getElementById('film-counter').textContent = `— ${photos.length} frame${photos.length!==1?'s':''} —`;
+}
+function updateThumb(url) {
+  document.getElementById('gallery-thumb').innerHTML = `<img src="${url}">`;
+}
+
+// ═══════════════════════════════════════
+// GALLERY
+// ═══════════════════════════════════════
+function openGallery() {
+  const modal = document.getElementById('gallery-modal');
+  const grid = document.getElementById('gallery-grid');
+  const empty = document.getElementById('gallery-empty');
+  modal.classList.add('open');
+  grid.innerHTML='';
+  if (photos.length === 0) { grid.style.display='none'; empty.style.display='flex'; return; }
+  grid.style.display='grid'; empty.style.display='none';
+  photos.forEach((p,i) => {
+    const item = document.createElement('div');
+    item.className='gallery-item';
+    item.innerHTML=`<img src="${p.dataUrl}" alt="Frame ${i+1}"><button class="dl-btn">⬇</button>`;
+    item.querySelector('.dl-btn').addEventListener('click', e => { e.stopPropagation(); downloadPhoto(p,i); });
+    item.addEventListener('click', () => downloadPhoto(p,i));
+    grid.appendChild(item);
+  });
+}
+function closeGallery() { document.getElementById('gallery-modal').classList.remove('open'); }
+function downloadPhoto(photo, index) {
+  const a = document.createElement('a');
+  const d = photo.date;
+  a.href = photo.dataUrl;
+  a.download = `grainhaus_${photo.preset.replace(/\s/g,'_')}_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${index+1}.jpg`;
+  a.click();
+}
+
+// ═══════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════
+let toastEl;
+function showToast(msg) {
+  if (!toastEl) {
+    toastEl = document.createElement('div');
+    toastEl.style.cssText = 'position:fixed;bottom:220px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.82);color:#e0c890;font-family:"Courier Prime",monospace;font-size:10px;letter-spacing:0.15em;padding:6px 14px;border-radius:2px;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;';
+    document.body.appendChild(toastEl);
+  }
+  toastEl.textContent = msg;
+  toastEl.style.opacity='1';
+  clearTimeout(toastEl._t);
+  toastEl._t = setTimeout(() => toastEl.style.opacity='0', 2200);
+}
+
+// ═══════════════════════════════════════
+// KEYBOARD
+// ═══════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.code==='Space' && !document.getElementById('gallery-modal').classList.contains('open')) { e.preventDefault(); takePhoto(); }
+  if (e.code==='Escape') closeGallery();
+});
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
 buildPresetStrip();
 applyPreset(currentPreset);
-
-// Keyboard shortcut: Space = shutter
-document.addEventListener('keydown', e => {
-  if (e.code === 'Space' && document.getElementById('gallery-modal').classList.contains('open') === false) {
-    e.preventDefault(); takePhoto();
-  }
-  if (e.code === 'Escape') closeGallery();
-});
+document.getElementById('shot-overlay').textContent = '∞';
 </script>
 </body>
 </html>
