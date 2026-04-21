@@ -165,6 +165,49 @@
   }
   .preset-btn.active .preset-label { color: var(--accent); }
 
+  /* Zoom bar */
+  #zoom-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 4px 14px;
+  }
+
+  #zoom-label {
+    font-size: 10px; letter-spacing: 0.18em;
+    color: var(--accent); min-width: 36px;
+    text-align: center;
+  }
+
+  #zoom-slider {
+    flex: 1; -webkit-appearance: none; appearance: none;
+    height: 2px; background: var(--border);
+    border-radius: 2px; outline: none; cursor: pointer;
+  }
+  #zoom-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #f0e0b0, #c8a84b 60%, #8a6a20);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+  #zoom-slider::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%; border: none;
+    background: radial-gradient(circle at 35% 35%, #f0e0b0, #c8a84b 60%, #8a6a20);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+
+  /* Zoom indicator on viewfinder */
+  #zoom-indicator {
+    position: absolute; top: 72px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: 0.2em;
+    color: var(--accent);
+    background: rgba(0,0,0,0.5);
+    padding: 3px 10px; border-radius: 2px;
+    pointer-events: none; z-index: 6;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  #zoom-indicator.visible { opacity: 1; }
+
   /* Main row: flip + shutter + gallery */
   #main-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -371,6 +414,8 @@
 
   <!-- Date stamp -->
   <div id="datestamp"></div>
+  <!-- Zoom indicator -->
+  <div id="zoom-indicator">1.0×</div>
 
   <!-- Top bar -->
   <div id="topbar">
@@ -382,6 +427,13 @@
   <div id="controls">
     <!-- Preset strip -->
     <div id="preset-strip"></div>
+    <!-- Zoom bar -->
+    <div id="zoom-bar">
+      <span style="font-size:11px;color:var(--text-dim);">−</span>
+      <input type="range" id="zoom-slider" min="1" max="5" step="0.1" value="1">
+      <span style="font-size:11px;color:var(--text-dim);">+</span>
+      <span id="zoom-label">1.0×</span>
+    </div>
     <!-- Main row -->
     <div id="main-row">
       <button class="side-btn" id="flip-btn" title="Flip camera">⇄</button>
@@ -589,6 +641,10 @@ async function startCamera() {
 
 document.getElementById('flip-btn').addEventListener('click', () => {
   facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  currentZoom = 1;
+  document.getElementById('zoom-slider').value = 1;
+  document.getElementById('zoom-label').textContent = '1.0×';
+  document.getElementById('video').style.transform = '';
   startCamera();
 });
 
@@ -615,15 +671,23 @@ function takePhoto() {
     ring.classList.remove('firing');
   }, 120);
 
-  // Capture frame
+  // Draw video — cropped to match zoom level
   const vw = video.videoWidth || 1920;
   const vh = video.videoHeight || 1080;
   captureCanvas.width = vw;
   captureCanvas.height = vh;
 
-  // Draw video
   captureCtx.filter = currentPreset.filter;
-  captureCtx.drawImage(video, 0, 0, vw, vh);
+  if (currentZoom > 1) {
+    // Crop centre to simulate zoom
+    const cropW = vw / currentZoom;
+    const cropH = vh / currentZoom;
+    const cropX = (vw - cropW) / 2;
+    const cropY = (vh - cropH) / 2;
+    captureCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, vw, vh);
+  } else {
+    captureCtx.drawImage(video, 0, 0, vw, vh);
+  }
   captureCtx.filter = 'none';
 
   // Color overlay
@@ -741,7 +805,89 @@ function downloadPhoto(photo, index) {
 }
 
 // ═══════════════════════════════════════════════
-// INIT
+// ZOOM
+// ═══════════════════════════════════════════════
+let currentZoom = 1;
+let maxZoom = 5;
+let zoomIndicatorTimeout;
+
+function showZoomIndicator(val) {
+  const el = document.getElementById('zoom-indicator');
+  el.textContent = val.toFixed(1) + '×';
+  el.classList.add('visible');
+  clearTimeout(zoomIndicatorTimeout);
+  zoomIndicatorTimeout = setTimeout(() => el.classList.remove('visible'), 1500);
+}
+
+async function applyZoom(val) {
+  currentZoom = val;
+  document.getElementById('zoom-label').textContent = val.toFixed(1) + '×';
+  document.getElementById('zoom-slider').value = val;
+  showZoomIndicator(val);
+
+  if (!stream) return;
+  const track = stream.getVideoTracks()[0];
+  if (!track) return;
+
+  try {
+    const caps = track.getCapabilities();
+    if (caps.zoom) {
+      const min = caps.zoom.min || 1;
+      const max = caps.zoom.max || 5;
+      const clamped = Math.min(max, Math.max(min, val));
+      await track.applyConstraints({ advanced: [{ zoom: clamped }] });
+      maxZoom = max;
+      document.getElementById('zoom-slider').max = Math.min(max, 10);
+    } else {
+      // Fallback: CSS scale on video
+      const scale = val;
+      document.getElementById('video').style.transform = `scale(${scale})`;
+      document.getElementById('video').style.transformOrigin = 'center center';
+    }
+  } catch (e) {
+    // Fallback
+    document.getElementById('video').style.transform = `scale(${val})`;
+    document.getElementById('video').style.transformOrigin = 'center center';
+  }
+}
+
+// Slider input
+document.getElementById('zoom-slider').addEventListener('input', e => {
+  applyZoom(parseFloat(e.target.value));
+});
+
+// Pinch-to-zoom
+let lastPinchDist = null;
+let pinchStartZoom = 1;
+
+document.getElementById('viewfinder').addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    lastPinchDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    pinchStartZoom = currentZoom;
+  }
+}, { passive: true });
+
+document.getElementById('viewfinder').addEventListener('touchmove', e => {
+  if (e.touches.length === 2 && lastPinchDist !== null) {
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    const ratio = dist / lastPinchDist;
+    const sliderMax = parseFloat(document.getElementById('zoom-slider').max);
+    const newZoom = Math.min(sliderMax, Math.max(1, pinchStartZoom * ratio));
+    applyZoom(parseFloat(newZoom.toFixed(1)));
+  }
+}, { passive: true });
+
+document.getElementById('viewfinder').addEventListener('touchend', e => {
+  if (e.touches.length < 2) lastPinchDist = null;
+}, { passive: true });
+
+// Reset zoom on camera flip
 // ═══════════════════════════════════════════════
 buildPresetStrip();
 applyPreset(currentPreset);
